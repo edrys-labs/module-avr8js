@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AVR8js Simulator</title>
+
+    <meta name="fetch" content="true">
+
+    <meta name="description" content="todo" />
+    <meta name="show-in" content="*" />
+
+    <script type="module" src="index.ts"></script>
+
+    <script src="https://edrys-org.github.io/edrys/module/edrys.js"></script>
+    <script defer src="https://edrys-org.github.io/edrys/module/vendor/alpine.min.js"></script>
+    <link rel="stylesheet" href="https://edrys-org.github.io/edrys/module/vendor/water.min.css" />
+    <link rel="stylesheet" href="https://edrys-org.github.io/edrys/module/vendor/open-iconic/css/open-iconic.min.css" />
+
+
+    <script>
+        function disabled(bool) {
+            document.getElementById("send").disabled = bool
+            document.getElementById("stop").disabled = bool
+            document.getElementById("stdin").disabled = bool
+        }
+
+        function send() {
+            const input = document.getElementById("stdin")
+
+            if (window.runner) {
+                const value = input?.value || ""
+
+                toTerminal(value+"\n")
+                window.runner.serial(value)
+            }
+
+            input.value = ""
+        }
+
+        function stop() {
+            if (window.runner) {
+                window.runner.stop()
+                window.runner = null
+                toTerminal("\nexecution stopped")
+
+                disabled(true)
+            }
+        }
+
+        async function compile(sketch) {
+            if (window.runner) {
+                stop()
+            }
+
+            const hex = await window.AVR8js.build(sketch)
+
+            if (hex.stderr) {
+                toTerminal(hex.stderr, false, true)
+                return
+            }
+
+            toTerminal(hex.stdout, true, true)
+
+            if (hex.hex) {
+                disabled(false)
+                window.runner = window.AVR8js.execute(hex.hex, toTerminal)
+            } else {
+                window.runner = null
+            }
+        }       
+
+        function toTerminal(output, ok = true, clear = false) {
+            const terminal = document.getElementById("stdout")
+
+            const span = ok ? output : `<span style="color:red"}">${output}</sapn>`
+
+            if (clear) {
+                terminal.innerHTML = span
+            } else {
+                terminal.innerHTML += span
+            }
+
+            terminal.scrollTo(0, terminal.scrollHeight)
+        }
+
+        Edrys.onReady(() => {
+            console.log("AVR8js simulator loaded")
+
+            let content = Edrys.module.config.modules || ""
+
+            content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + 'Config']?.modules || "")
+
+            document.getElementById("modules").innerHTML = content
+        });
+
+        Edrys.onMessage(
+            ({
+                from,
+                subject,
+                body,
+                module
+            }) => {
+                if (subject === (Edrys.module.config?.execute || "execute")) {
+                    try {
+                        let data = JSON.parse(body)
+                    } catch (e) {
+                        compile(body)
+                    }
+
+
+                }
+            }, promiscuous = true);
+    </script>
+
+    <style>
+        #modules {
+            width: 100%;
+            height: 100px;
+        }
+
+        #stdout {
+            width: calc(100% - 1rem);
+            height: 15rem;
+            border: solid 1px white;
+            padding: 0.5rem;
+            white-space: pre-wrap;
+            overflow: auto;
+            background-color: #000;
+        }
+
+        #stdin {
+            display: inline;
+            width: calc(100% - 12.5rem);
+            margin-top: 0.5rem;
+        }
+
+        #send {
+            display: inline;
+            width: 4.75rem;
+            margin-top: 0.5rem;
+            margin-right: 0;
+        }
+
+        #stop {
+            display: inline;
+            width: 5.75rem;
+            float: right;
+            margin-top: 0.5rem;
+            margin-right: 0;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div id="terminal">
+        <div id="stdout">$ ...</div>
+
+        <button id="send" onclick="send()" disabled>
+            >>
+        </button>
+        <input id="stdin" type="text" disabled></input>
+        
+        <button id="stop" onclick="stop()" disabled>
+            stop
+        </button>
+        </div> <div id="modules">
+    </div>
+</body>
+
+</html>
