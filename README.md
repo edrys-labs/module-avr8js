@@ -12,10 +12,10 @@ Additionally, the module will listen to messages on execute, this way external e
 
 ``` yaml
 modules: |
-  <wokwi-led color='red'   pin='13" label="13'></wokwi-led>
-  <wokwi-led color='green' pin='12" label="12'></wokwi-led>
-  <wokwi-led color='blue'  pin='11" label="11'></wokwi-led>
-  <wokwi-led color='blue'  pin='10" label="10'></wokwi-led>
+  <wokwi-led color='red'   pin='13' label='13'></wokwi-led>
+  <wokwi-led color='green' pin='12' label='12'></wokwi-led>
+  <wokwi-led color='blue'  pin='11' label='11'></wokwi-led>
+  <wokwi-led color='blue'  pin='10' label='10'></wokwi-led>
   <span id='simulation-time'></span>
 
 execute: execute
@@ -25,7 +25,7 @@ or as JSON
 
 ``` json
 {
-  "modules": "<wokwi-led color='red'   pin='13\" label=\"13'></wokwi-led>\n<wokwi-led color='green' pin='12\" label=\"12'></wokwi-led>\n<wokwi-led color='blue'  pin='11\" label=\"11'></wokwi-led>\n<wokwi-led color='blue'  pin='10\" label=\"10'></wokwi-led>\n<span id='simulation-time'></span>\n",
+  "modules": "<wokwi-led color='red'   pin='13' label='13'></wokwi-led>\n<wokwi-led color='green' pin='12' label='12'></wokwi-led>\n<wokwi-led color='blue'  pin='11' label='11'></wokwi-led>\n<wokwi-led color='blue'  pin='10' label='10'></wokwi-led>\n<span id='simulation-time'></span>",
   "execute": "execute"
 }
 ```
