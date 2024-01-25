@@ -1,8 +1,8 @@
-# edrys_module-avr8js
+# module-avr8js
 
 AVR8js-Simulator for edrys import the module via:
 
-`https://cross-lab-project.github.io/edrys_module-avr8js/index.html`
+`https://edrys-labs.github.io/edrys_module-avr8js/index.html`
 
 ## Settings
 
