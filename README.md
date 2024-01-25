@@ -1,6 +1,6 @@
 # module-avr8js
 
-AVR8js-Simulator for edrys import the module via:
+AVR8js-Simulator for [edrys-Lite](https://github.com/edrys-labs/edrys-Lite) import the module via:
 
 `https://edrys-labs.github.io/edrys_module-avr8js/index.html`
 
