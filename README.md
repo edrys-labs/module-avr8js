@@ -2,7 +2,7 @@
 
 AVR8js-Simulator for [edrys-Lite](https://github.com/edrys-labs/edrys-Lite) import the module via:
 
-`https://edrys-labs.github.io/edrys_module-avr8js/index.html`
+`https://edrys-labs.github.io/module-avr8js/index.html`
 
 ## Settings
 
