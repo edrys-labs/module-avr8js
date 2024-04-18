@@ -14,8 +14,6 @@ import {
   SevenSegmentElement,
 } from '@wokwi/elements'
 
-declare const window: any
-
 function pinPort(e: any): [number | null, string | null] {
   let port: PORT | null
   let pin = e.getAttribute('pin')
@@ -36,16 +34,16 @@ function pinPort(e: any): [number | null, string | null] {
   return [pin % 8, port]
 }
 
-window.AVR8js = {
+const AVR8js = {
   build: async function (sketch: string, files = []) {
-    if (!window.__AVR8jsCache) {
-      window.__AVR8jsCache = {}
+    if (!window['__AVR8jsCache']) {
+      window['__AVR8jsCache'] = {}
     }
 
     let body = JSON.stringify({ sketch: sketch, files })
 
-    if (window.__AVR8jsCache[body]) {
-      return window.__AVR8jsCache[body]
+    if (window['__AVR8jsCache'][body]) {
+      return window['__AVR8jsCache'][body]
     } else {
       const resp = await fetch('https://hexi.wokwi.com/build', {
         method: 'POST',
@@ -58,21 +56,21 @@ window.AVR8js = {
       })
       const rslt = await resp.json()
 
-      window.__AVR8jsCache[body] = rslt
+      window['__AVR8jsCache'][body] = rslt
 
       return rslt
     }
   },
 
   buildASM: async function asmToHex(source: string) {
-    if (!window.__AVR8jsCache) {
-      window.__AVR8jsCache = {}
+    if (!window['__AVR8jsCache']) {
+      window['__AVR8jsCache'] = {}
     }
 
     let body = JSON.stringify({ files: [{ name: 'main.S', content: source }] })
 
-    if (window.__AVR8jsCache[body]) {
-      return window.__AVR8jsCache[body]
+    if (window['__AVR8jsCache'][body]) {
+      return window['__AVR8jsCache'][body]
     } else {
       const resp = await fetch('https://hexi.wokwi.com/asm', {
         method: 'POST',
@@ -86,7 +84,7 @@ window.AVR8js = {
 
       const rslt = await resp.json()
 
-      window.__AVR8jsCache[body] = rslt
+      window['__AVR8jsCache'][body] = rslt
 
       return rslt
     }
@@ -243,3 +241,7 @@ window.AVR8js = {
     return runner
   },
 }
+
+window['AVR8js'] = AVR8js
+
+export { AVR8js }

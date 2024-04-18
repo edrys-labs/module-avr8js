@@ -7,16 +7,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AVR8js Simulator</title>
 
-    <meta name="description" content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-editor' target='_blank'>module-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be send via topic `execute`, of for more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>" />
+    <meta name="description"
+        content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-editor' target='_blank'>module-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be send via topic `execute`, of for more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>" />
     <meta name="show-in" content="*" />
-
-    <script type="module" src="index.ts"></script>
 
     <script src="https://edrys-labs.github.io/module/edrys.js"></script>
     <script defer src="https://edrys-labs.github.io/module/vendor/alpine.min.js"></script>
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/water.min.css" />
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css" />
 
+    <script defer type="module">
+        import { AVR8js } from "./index.ts"
+        window["AVR8js"] = AVR8js
+    </script>
 
     <script>
         function disabled(bool) {
@@ -26,12 +29,13 @@
         }
 
         function send() {
+            console.log("send")
             const input = document.getElementById("stdin")
 
             if (window.runner) {
-                const value = input?.value || ""
+                const value = input ? .value || ""
 
-                toTerminal(value+"\n")
+                toTerminal(value + "\n")
                 window.runner.serial(value)
             }
 
@@ -39,6 +43,7 @@
         }
 
         function stop() {
+            console.log("stop")
             if (window.runner) {
                 window.runner.stop()
                 window.runner = null
@@ -53,7 +58,8 @@
                 stop()
             }
 
-            const hex = await window.AVR8js.build(sketch)
+            toTerminal("\nstart compiling ...")
+            const hex = await window["AVR8js"].build(sketch)
 
             if (hex.stderr) {
                 toTerminal(hex.stderr, false, true)
@@ -64,11 +70,11 @@
 
             if (hex.hex) {
                 disabled(false)
-                window.runner = window.AVR8js.execute(hex.hex, toTerminal)
+                window.runner = window["AVR8js"].execute(hex.hex, toTerminal)
             } else {
                 window.runner = null
             }
-        }       
+        }
 
         function toTerminal(output, ok = true, clear = false) {
             const terminal = document.getElementById("stdout")
@@ -85,13 +91,22 @@
         }
 
         Edrys.onReady(() => {
-            console.log("AVR8js simulator loaded")
+            console.log("AVR8js simulator loaded ...")
 
             let content = Edrys.module.config.modules || ""
 
-            content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + 'Config']?.modules || "")
+            content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + 'Config'] ? .modules || "")
 
             document.getElementById("modules").innerHTML = content
+
+            const inputElement = document.getElementById('stdin');
+
+            inputElement.addEventListener('keydown', function (event) {
+                if (event.key === "Enter") {
+                    // Call your function here
+                    send()
+                }
+            });
         });
 
         Edrys.onMessage(
@@ -101,7 +116,7 @@
                 body,
                 module
             }) => {
-                if (subject === (Edrys.module.config?.execute || "execute")) {
+                if (subject === (Edrys.module.config ? .execute || "execute")) {
                     try {
                         let data = JSON.parse(body)
                     } catch (e) {
@@ -161,11 +176,12 @@
             >>
         </button>
         <input id="stdin" type="text" disabled></input>
-        
+
         <button id="stop" onclick="stop()" disabled>
             stop
         </button>
-        </div> <div id="modules">
+    </div>
+    <div id="modules">
     </div>
 </body>
 
