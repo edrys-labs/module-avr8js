@@ -22153,6 +22153,7 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
         ;
         this.workUnitCycles = 500000;
         this.taskScheduler = new (0, $2c0d94366df39d6e$export$75888e1e77b5d9b8)();
+        this.FREQ = 16000000;
         (0, $4e34eb2589abb66e$export$6907aa30e09916b)(hex, new Uint8Array(this.program.buffer));
         this.cpu = new (0, $6827ba3ac14e49f1$export$5ebf4cde340e6028)(this.program);
         this.timer0 = new (0, $ad2a78a750a59eb7$export$1f1181cc33e90880)(this.cpu, (0, $ad2a78a750a59eb7$export$317a7a18d5dc735a));
@@ -22161,6 +22162,7 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
         this.port.set("B", new (0, $12dded1feaa73920$export$1ac453f8bba2925a)(this.cpu, (0, $12dded1feaa73920$export$f039e5ab0d318d39)));
         this.port.set("C", new (0, $12dded1feaa73920$export$1ac453f8bba2925a)(this.cpu, (0, $12dded1feaa73920$export$12fe028bd33e21d9)));
         this.port.set("D", new (0, $12dded1feaa73920$export$1ac453f8bba2925a)(this.cpu, (0, $12dded1feaa73920$export$95db00590d95ae9e)));
+        this.twi = new (0, $bdade389ae8e5253$export$2ab34bf4f1a82352)(this.cpu, (0, $bdade389ae8e5253$export$df5a6af6000a55bc), this.FREQ);
         this.serialBuffer = [];
         this.usart = new (0, $37345e8f0c999ca9$export$241bd50152a44a1a)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d), this.speed);
         this.cpu.readHooks[(0, $37345e8f0c999ca9$export$a1a91e39cb4174d).UDR] = ()=>this.serialBuffer.shift() || 0;
@@ -22317,6 +22319,591 @@ class $d584820596a6d1a3$export$e1e1654c63a0eb5 {
 }
 
 
+class $96106803a6abb79d$export$63e3c8dfe1f20173 {
+    constructor(twi){
+        this.twi = twi;
+        this.devices = {};
+        this.activeDevice = null;
+        this.writeMode = false;
+        twi.eventHandler = this;
+    }
+    registerDevice(addr, device) {
+        this.devices[addr] = device;
+    }
+    start() {
+        this.twi.completeStart();
+    }
+    stop() {
+        if (this.activeDevice) {
+            this.activeDevice.i2cDisconnect();
+            this.activeDevice = null;
+        }
+        this.twi.completeStop();
+    }
+    connectToSlave(addr, write) {
+        let result = false;
+        const device = this.devices[addr];
+        if (device) {
+            result = device.i2cConnect(addr, write);
+            if (result) {
+                this.activeDevice = device;
+                this.writeMode = write;
+            }
+        }
+        this.twi.completeConnect(result);
+    }
+    writeByte(value) {
+        if (this.activeDevice && this.writeMode) this.twi.completeWrite(this.activeDevice.i2cWriteByte(value));
+        else this.twi.completeWrite(false);
+    }
+    readByte(ack) {
+        if (this.activeDevice && !this.writeMode) this.twi.completeRead(this.activeDevice.i2cReadByte(ack));
+        else this.twi.completeRead(0xff);
+    }
+}
+
+
+/**
+ * SSD1306 Controller Implementation
+ *
+ * Copyright (C) 2020 Uri Shaked
+ *
+ * For a full-blown Arduino simulator with SSD1306 and many other parts, check out Wokwi
+ * at https://wokwi.com/
+ */ const $80a2d79702959753$export$c1e25f625816cbba = 0x3c // For 32 bit tall display
+;
+const $80a2d79702959753$export$600935ff10924ec1 = 0x3d // For others
+;
+const $80a2d79702959753$var$SSD1306_MODE_CMD = 0x0;
+const $80a2d79702959753$var$SSD1306_MODE_DATA = 0x40;
+const $80a2d79702959753$var$CMD_MEMORY_MODE = 0x20;
+const $80a2d79702959753$var$CMD_COLUMN_ADDR = 0x21;
+const $80a2d79702959753$var$CMD_PAGE_ADDR = 0x22;
+const $80a2d79702959753$var$CMD_SET_CONTRAST = 0x81;
+const $80a2d79702959753$var$CMD_CHARGE_PUMP = 0x8d;
+const $80a2d79702959753$var$CMD_SEG_REMAP_OFF = 0xa0;
+const $80a2d79702959753$var$CMD_SEG_REMAP_ON = 0xa1;
+const $80a2d79702959753$var$CMD_DISPLAY_ALL_ON_RESUME = 0xa4;
+const $80a2d79702959753$var$CMD_DISPLAY_ALL_ON = 0xa5;
+const $80a2d79702959753$var$CMD_NORMAL_DISPLAY = 0xa6;
+const $80a2d79702959753$var$CMD_INVERT_DISPLAY = 0xa7;
+const $80a2d79702959753$var$CMD_SET_MULTIPLEX = 0xa8;
+const $80a2d79702959753$var$CMD_DISPLAY_OFF = 0xae;
+const $80a2d79702959753$var$CMD_DISPLAY_ON = 0xaf;
+const $80a2d79702959753$var$CMD_COM_SCAN_INC = 0xc0;
+const $80a2d79702959753$var$CMD_COM_SCAN_DEC = 0xc8;
+const $80a2d79702959753$var$CMD_SET_DISPLAY_OFFSET = 0xd3;
+const $80a2d79702959753$var$CMD_SET_DISPLAY_CLOCK_DIV = 0xd5;
+const $80a2d79702959753$var$CMD_SET_PRECHARGE = 0xd9;
+const $80a2d79702959753$var$CMD_SET_COM_PINS = 0xda;
+const $80a2d79702959753$var$CMD_SET_VCOM_DESELECT = 0xdb;
+const $80a2d79702959753$var$CMD_NOP = 0xe3;
+const $80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL = 0x26;
+const $80a2d79702959753$var$CMD_LEFT_HORIZONTAL_SCROLL = 0x27;
+const $80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL = 0x29;
+const $80a2d79702959753$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL = 0x2a;
+const $80a2d79702959753$var$CMD_DEACTIVATE_SCROLL = 0x2e;
+const $80a2d79702959753$var$CMD_ACTIVATE_SCROLL = 0x2f;
+const $80a2d79702959753$var$CMD_SET_VERTICAL_SCROLL_AREA = 0xa3;
+const $80a2d79702959753$var$MEM_MODE_HORIZONTAL_ADDRESSING = 0;
+const $80a2d79702959753$var$MEM_MODE_VERTICAL_ADDRESSING = 1;
+const $80a2d79702959753$var$MEM_MODE_PAGE_ADDRESSING = 2;
+/**
+ * Specifies the number of parameter bytes for each multi-byte command
+ */ const $80a2d79702959753$var$multiByteCommands = {
+    [$80a2d79702959753$var$CMD_SET_CONTRAST]: 1,
+    [$80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL]: 6,
+    [$80a2d79702959753$var$CMD_LEFT_HORIZONTAL_SCROLL]: 6,
+    [$80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL]: 5,
+    [$80a2d79702959753$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL]: 5,
+    [$80a2d79702959753$var$CMD_SET_VERTICAL_SCROLL_AREA]: 2,
+    [$80a2d79702959753$var$CMD_MEMORY_MODE]: 1,
+    [$80a2d79702959753$var$CMD_COLUMN_ADDR]: 2,
+    [$80a2d79702959753$var$CMD_PAGE_ADDR]: 2,
+    [$80a2d79702959753$var$CMD_SET_MULTIPLEX]: 1,
+    [$80a2d79702959753$var$CMD_SET_DISPLAY_OFFSET]: 1,
+    [$80a2d79702959753$var$CMD_SET_COM_PINS]: 1,
+    [$80a2d79702959753$var$CMD_SET_DISPLAY_CLOCK_DIV]: 1,
+    [$80a2d79702959753$var$CMD_SET_PRECHARGE]: 1,
+    [$80a2d79702959753$var$CMD_SET_VCOM_DESELECT]: 1,
+    [$80a2d79702959753$var$CMD_CHARGE_PUMP]: 1
+};
+// Defined in page 28 of the datasheet, frames per scroll step
+const $80a2d79702959753$var$scrollSpeeds = {
+    0: 5,
+    1: 64,
+    2: 128,
+    3: 256,
+    4: 3,
+    5: 4,
+    6: 25,
+    7: 2
+};
+// Oscillator frequency defined in page 49 of the datasheet
+const $80a2d79702959753$var$fOsc = 370000 // Hz
+;
+class $80a2d79702959753$export$4e603223a90213cc {
+    constructor(cpuMillis){
+        this.cpuMillis = cpuMillis;
+        this.width = 128;
+        this.height = 64;
+        this.pixels = new Uint8Array(this.width * this.height / 8);
+        this.displayOn = false;
+        this.updated = false;
+        this.scrollActive = false;
+        this.contrast = 0;
+        this.invert = false;
+        this.clockDivider = 0;
+        this.multiplexRatio = 0;
+        this.phase1 = 0;
+        this.phase2 = 0;
+        this.nextScrollTime = 0;
+        this.activeColumn = 0;
+        this.columnStart = 0;
+        this.columnEnd = 0;
+        this.activePage = 0;
+        this.pageStart = 0;
+        this.pageEnd = 0;
+        this.memoryMode = 0;
+        this.startLine = 0;
+        this.scrollRight = false;
+        this.scrollVertical = false;
+        this.scrollStartPage = 0;
+        this.scrollEndPage = 0;
+        this.scrollSpeed = 0;
+        this.verticalOffset = 0;
+        this.scrollOffset = 0;
+        this.firstByte = true;
+        this.commandMode = false;
+        this.currentCommandIndex = 0;
+        this.currentCommandLength = 0;
+        this.currentCommand = new Uint8Array(8);
+        this.reset();
+    }
+    update() {
+        let result = null;
+        if (this.scrollActive && this.cpuMillis() > this.nextScrollTime) {
+            this.scroll();
+            this.calculateNextScroll();
+        }
+        if (this.updated) {
+            const { pixels: pixels, invert: invert, contrast: contrast, scrollOffset: scrollOffset, startLine: startLine } = this;
+            result = {
+                pixels: pixels,
+                invert: invert,
+                contrast: contrast,
+                scrollOffset: scrollOffset,
+                startLine: startLine
+            };
+            this.updated = false;
+        }
+        return result;
+    }
+    toImageData(target) {
+        const { pixels: pixels, invert: invert, scrollOffset: scrollOffset, width: width, height: height } = this;
+        const { data: data } = target;
+        for(let y = 0; y < height; y++)for(let x = 0; x < width; x++){
+            const virtualY = (y + scrollOffset) % height;
+            const pixIndex = Math.floor(virtualY / 8) * width + x;
+            const pixValue = pixels[pixIndex] & 1 << virtualY % 8 ? !invert : invert;
+            const dataOffset = (y * target.width + x) * 4;
+            data.fill(pixValue ? 0xff : 0, dataOffset, dataOffset + 3);
+            data[dataOffset + 3] = 0xff;
+        }
+    }
+    reset() {
+        this.memoryMode = $80a2d79702959753$var$MEM_MODE_PAGE_ADDRESSING;
+        this.contrast = 0x7f;
+        this.clockDivider = 1;
+        this.multiplexRatio = 63;
+        this.phase1 = 2;
+        this.phase2 = 2;
+        this.scrollActive = false;
+        this.currentCommandIndex = 0;
+        this.activeColumn = 0;
+        this.columnStart = 0;
+        this.columnEnd = 127;
+        this.activePage = 0;
+        this.pageStart = 0;
+        this.pageEnd = 7;
+        this.startLine = 0;
+        this.invert = false;
+    }
+    i2cConnect() {
+        this.firstByte = true;
+        return true;
+    }
+    i2cReadByte() {
+        return 0xff;
+    }
+    i2cWriteByte(value) {
+        if (this.firstByte) {
+            this.commandMode = value === $80a2d79702959753$var$SSD1306_MODE_CMD;
+            this.firstByte = false;
+            return value === $80a2d79702959753$var$SSD1306_MODE_CMD || value === $80a2d79702959753$var$SSD1306_MODE_DATA;
+        }
+        if (this.commandMode) this.processCommand(value);
+        else this.processData(value);
+        return true;
+    }
+    processCommand(value) {
+        this.currentCommand[this.currentCommandIndex] = value;
+        if (!this.currentCommandIndex) this.currentCommandLength = 1 + ($80a2d79702959753$var$multiByteCommands[value] || 0);
+        this.currentCommandIndex++;
+        if (this.currentCommandIndex < this.currentCommandLength) // Wait for the next command byte
+        return;
+        const commandCode = this.currentCommand[0];
+        let autoUpdate = false;
+        switch(commandCode){
+            case $80a2d79702959753$var$CMD_SET_CONTRAST:
+                this.contrast = this.currentCommand[1];
+                autoUpdate = true;
+                break;
+            case $80a2d79702959753$var$CMD_DISPLAY_OFF:
+                this.displayOn = false;
+                this.updated = true;
+                break;
+            case $80a2d79702959753$var$CMD_DISPLAY_ON:
+                this.displayOn = true;
+                this.updated = true;
+                break;
+            case $80a2d79702959753$var$CMD_NORMAL_DISPLAY:
+                this.invert = false;
+                autoUpdate = true;
+                break;
+            case $80a2d79702959753$var$CMD_INVERT_DISPLAY:
+                this.invert = true;
+                autoUpdate = true;
+                break;
+            case $80a2d79702959753$var$CMD_NOP:
+                break;
+            case $80a2d79702959753$var$CMD_MEMORY_MODE:
+                this.memoryMode = this.currentCommand[1] & 0x3;
+                break;
+            case $80a2d79702959753$var$CMD_COLUMN_ADDR:
+                this.activeColumn = this.columnStart;
+                this.columnStart = this.currentCommand[1] & 0x7f;
+                this.columnEnd = this.currentCommand[2] & 0x7f;
+                break;
+            case $80a2d79702959753$var$CMD_PAGE_ADDR:
+                this.activePage = this.pageStart;
+                this.pageStart = this.currentCommand[1] & 0x7;
+                this.pageEnd = this.currentCommand[2] & 0x7;
+                break;
+            case $80a2d79702959753$var$CMD_DEACTIVATE_SCROLL:
+                this.scrollOffset = 0;
+                this.scrollActive = false;
+                break;
+            case $80a2d79702959753$var$CMD_ACTIVATE_SCROLL:
+                this.scrollActive = true;
+                this.calculateNextScroll();
+                break;
+            case $80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL:
+            case $80a2d79702959753$var$CMD_LEFT_HORIZONTAL_SCROLL:
+                this.scrollVertical = false;
+                this.scrollRight = commandCode === $80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL;
+                this.scrollStartPage = this.currentCommand[2] & 0x7;
+                this.scrollSpeed = this.currentCommand[3] & 0x7;
+                this.scrollEndPage = this.currentCommand[4] & 0x7;
+                break;
+            case $80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL:
+            case $80a2d79702959753$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL:
+                this.scrollRight = commandCode === $80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL;
+                this.scrollStartPage = this.currentCommand[2] & 0x7;
+                this.scrollSpeed = this.currentCommand[3] & 0x7;
+                this.scrollEndPage = this.currentCommand[4] & 0x7;
+                this.verticalOffset = this.currentCommand[5] & 0x3f;
+                this.scrollVertical = this.verticalOffset > 0;
+                break;
+            case $80a2d79702959753$var$CMD_SET_DISPLAY_CLOCK_DIV:
+                this.clockDivider = 1 + (this.currentCommand[1] & 0xf);
+                break;
+            case $80a2d79702959753$var$CMD_SET_PRECHARGE:
+                this.phase1 = this.currentCommand[1] & 0xf;
+                this.phase2 = this.currentCommand[1] >> 4 & 0xf;
+                break;
+            case $80a2d79702959753$var$CMD_CHARGE_PUMP:
+            case $80a2d79702959753$var$CMD_SET_DISPLAY_OFFSET:
+            case $80a2d79702959753$var$CMD_SET_MULTIPLEX:
+            case $80a2d79702959753$var$CMD_COM_SCAN_INC:
+            case $80a2d79702959753$var$CMD_COM_SCAN_DEC:
+            case $80a2d79702959753$var$CMD_SET_PRECHARGE:
+            case $80a2d79702959753$var$CMD_SET_COM_PINS:
+            case $80a2d79702959753$var$CMD_SET_VCOM_DESELECT:
+            case $80a2d79702959753$var$CMD_SEG_REMAP_OFF:
+            case $80a2d79702959753$var$CMD_SEG_REMAP_ON:
+            case $80a2d79702959753$var$CMD_SET_VERTICAL_SCROLL_AREA:
+            case $80a2d79702959753$var$CMD_DISPLAY_ALL_ON:
+            case $80a2d79702959753$var$CMD_DISPLAY_ALL_ON_RESUME:
+                break;
+            default:
+                if (commandCode <= 0x0f) {
+                    this.activeColumn = this.activeColumn & 0xf0 | commandCode;
+                    break;
+                }
+                if (commandCode >= 0x10 && commandCode <= 0x1f) {
+                    this.activeColumn = this.activeColumn & 0x0f | (commandCode & 0x0f) << 4;
+                    break;
+                }
+                if (commandCode >= 0x40 && commandCode <= 0x7f) {
+                    this.startLine = commandCode & 0x3f;
+                    autoUpdate = true;
+                    break;
+                }
+                if (commandCode >= 0xb0 && commandCode <= 0xb7) {
+                    this.activePage = commandCode & 0x7;
+                    break;
+                }
+                console.warn("Unknown SSD1306 Command", commandCode.toString(16), this.currentCommand.slice(1, this.currentCommandIndex));
+        }
+        if (autoUpdate && this.displayOn) this.updated = true;
+        // Reset command buffer index, ready to read the next command
+        this.currentCommandIndex = 0;
+    }
+    processData(value) {
+        const target = this.activePage * this.width + this.activeColumn;
+        this.pixels[target] = value;
+        // Memory modes are explained in pages 34-35 of the datasheet,
+        // and determine how the order of writing the pixels to the
+        // display RAM.
+        switch(this.memoryMode){
+            case $80a2d79702959753$var$MEM_MODE_HORIZONTAL_ADDRESSING:
+                this.activeColumn++;
+                if (this.activeColumn > this.columnEnd) {
+                    this.activeColumn = this.columnStart;
+                    this.activePage++;
+                    if (this.activePage > this.pageEnd) this.activePage = this.pageStart;
+                }
+                break;
+            case $80a2d79702959753$var$MEM_MODE_VERTICAL_ADDRESSING:
+                this.activePage++;
+                if (this.activePage > this.pageEnd) {
+                    this.activePage = this.pageStart;
+                    this.activeColumn++;
+                    if (this.activeColumn > this.columnEnd) this.activeColumn = this.columnStart;
+                }
+                break;
+            case $80a2d79702959753$var$MEM_MODE_PAGE_ADDRESSING:
+            default:
+                this.activeColumn++;
+                if (this.activeColumn > this.width) {
+                    this.activeColumn = 0;
+                    this.activePage++;
+                }
+                break;
+        }
+        this.updated = true;
+    }
+    i2cDisconnect() {}
+    scroll() {
+        // TODO clock
+        const pageSize = this.width;
+        for(let page = this.scrollStartPage; page <= this.scrollEndPage; page++){
+            const pageStart = page * pageSize;
+            if (this.scrollRight) {
+                const last = this.pixels[pageStart + pageSize - 1];
+                this.pixels.set(this.pixels.slice(pageStart, pageStart + pageSize - 1), pageStart + 1);
+                this.pixels[pageStart] = last;
+            } else {
+                const first = this.pixels[pageStart];
+                this.pixels.set(this.pixels.slice(pageStart + 1, pageStart + pageSize), pageStart);
+                this.pixels[pageStart + pageSize - 1] = first;
+            }
+            this.updated = true;
+        }
+        if (this.scrollVertical) this.scrollOffset = (this.scrollOffset + this.verticalOffset) % this.height;
+    }
+    get scrollFrameTime() {
+        return 1000 * $80a2d79702959753$var$scrollSpeeds[this.scrollSpeed] / this.frameFrequency;
+    }
+    calculateNextScroll() {
+        this.nextScrollTime = this.cpuMillis() + this.scrollFrameTime;
+    }
+    get frameFrequency() {
+        // Taken from section 8.3 (page 22) of the datasheet
+        const K = this.phase1 + this.phase2 + 50;
+        return $80a2d79702959753$var$fOsc / (this.clockDivider * K * (1 + this.multiplexRatio));
+    }
+}
+
+
+/**
+ * LCD1602
+ * Part of AVR8js Electron Playground
+ *
+ * Copyright (C) 2019, Uri Shaked
+ * Copyright (C) 2020, Anderson Costa
+ */ const $47ee68282ac4f23a$export$dd8dc45f6c3d9010 = 0x27;
+const $47ee68282ac4f23a$var$LCD_MODE_CMD = 0x00;
+const $47ee68282ac4f23a$var$LCD_MODE_DATA = 0x40;
+const $47ee68282ac4f23a$var$LCD_CMD_CLEAR = 0x01;
+const $47ee68282ac4f23a$var$LCD_CMD_HOME = 0x02;
+const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE = 0x04;
+const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_INCREMENT = 0x02;
+const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_DECREMENT = 0x00;
+const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_SHIFT = 0x01;
+const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CONTROL = 0x08;
+const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_ENABLE = 0x04;
+const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR = 0x02;
+const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR_BLINK = 0x01;
+const $47ee68282ac4f23a$var$LCD_CMD_SHIFT = 0x10;
+const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_CURSOR = 0x00;
+const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_DISPLAY = 0x08;
+const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_LEFT = 0x00;
+const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_RIGHT = 0x04;
+const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION = 0x20;
+const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION_LCD_1LINE = 0x00;
+const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION_LCD_2LINE = 0x08;
+const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION_5x10_DOTS = 0x04;
+const $47ee68282ac4f23a$var$LCD_CMD_SET_CGRAM_ADDR = 0x40;
+const $47ee68282ac4f23a$var$LCD_CMD_SET_DRAM_ADDR = 0x80;
+// Extra
+const $47ee68282ac4f23a$var$LCD_CMD_SET_CONTRAST = 0x81;
+// Oscillator frequency defined in datasheet is 270 kHz
+const $47ee68282ac4f23a$var$fOsc = 270000;
+class $47ee68282ac4f23a$export$c3787bd0c90a66b8 {
+    constructor(cpuMillis){
+        this.cpuMillis = cpuMillis;
+        this.cgram = new Uint8Array(64);
+        this.ddram = new Uint8Array(128);
+        this.addr = 0x00 // Address
+        ;
+        this.shift = 0x00 // Shift Register
+        ;
+        this.data = 0x00 // Data Register
+        ;
+        this.displayOn = false;
+        this.blinkOn = false;
+        this.cursorOn = false;
+        this.backlight = false;
+        this.firstByte = true;
+        this.commandMode = false;
+        this.cgramMode = false;
+        this.cgramUpdated = true;
+        this.incrementMode = true;
+        this.shiftMode = false;
+        this.is8bit = true;
+        this.updated = false;
+        this.render();
+    }
+    update() {
+        if (this.updated) {
+            this.updated = false;
+            return this.render();
+        }
+        return false;
+    }
+    render() {
+        let characters = new Uint8Array(32);
+        if (this.displayOn) {
+            const r1 = this.shift % 64;
+            const r2 = 64 + this.shift % 64;
+            // Set characters
+            characters.set(this.ddram.slice(r1, r1 + 16));
+            characters.set(this.ddram.slice(r2, r2 + 16), 16);
+        } else characters.fill(32);
+        const result = {
+            blink: this.blinkOn,
+            cursor: this.cursorOn,
+            cursorX: this.addr % 64,
+            cursorY: Math.floor(this.addr / 64),
+            characters: characters,
+            backlight: this.backlight,
+            cgram: this.cgram,
+            cgramUpdated: this.cgramUpdated
+        };
+        this.cgramUpdated = false;
+        return result;
+    }
+    backlightOn(value) {
+        if (this.backlight !== value) this.backlight = value;
+    }
+    i2cConnect() {
+        return true;
+    }
+    i2cDisconnect() {}
+    i2cReadByte() {
+        return 0xff;
+    }
+    i2cWriteByte(value) {
+        const data = value & 0xf0;
+        const rs = value & 0x01 ? true : false // Register Select
+        ;
+        const bl = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CONTROL ? true : false;
+        // Turn on/off backlight
+        this.backlightOn(bl);
+        // Check data write
+        if (value & 0x04 && !(value & 0x02)) this.writeData(data, rs);
+        return this.updated = true;
+    }
+    writeData(value, rs) {
+        if (!this.is8bit) {
+            // Check register
+            if (this.firstByte) {
+                this.firstByte = false;
+                this.data = value;
+                return false;
+            }
+            value = this.data | value >> 4;
+            this.firstByte = true;
+        }
+        if (rs) this.processData(value);
+        else this.processCommand(value);
+        this.updated = true;
+    }
+    processCommand(value) {
+        // Check commands
+        if (value & $47ee68282ac4f23a$var$LCD_CMD_FUNCTION) this.is8bit = value & 0x10 ? true : false;
+        else if (value & $47ee68282ac4f23a$var$LCD_CMD_SET_DRAM_ADDR) {
+            this.cgramMode = false;
+            this.addr = value & 0x7f;
+        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_SET_CGRAM_ADDR) {
+            this.cgramMode = true;
+            this.addr = value & 0x3f;
+        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_SHIFT) {
+            const shiftDisplay = value & $47ee68282ac4f23a$var$LCD_CMD_SHIFT_DISPLAY ? true : false;
+            const shiftRight = value & $47ee68282ac4f23a$var$LCD_CMD_SHIFT_RIGHT ? 1 : -1;
+            this.cgramMode = false;
+            this.addr = (this.addr + shiftRight) % 128;
+            if (shiftDisplay) this.shift = (this.shift + shiftRight) % 64;
+        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CONTROL) {
+            this.displayOn = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_ENABLE ? true : false;
+            this.blinkOn = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR_BLINK ? true : false;
+            this.cursorOn = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR ? true : false;
+        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE) {
+            this.cgramMode = false;
+            this.incrementMode = value & $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_INCREMENT ? true : false;
+            this.shiftMode = value & $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_SHIFT ? true : false;
+        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_HOME) {
+            this.cgramMode = false;
+            this.addr = 0x00;
+            this.shift = 0x00;
+        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_CLEAR) {
+            this.cgramMode = false;
+            this.incrementMode = true;
+            this.addr = 0x00;
+            this.shift = 0x00;
+            this.ddram.fill(32);
+        } else console.warn("Unknown LCD1602 Command", value.toString(16));
+    }
+    processData(value) {
+        // Check RAM type
+        if (this.cgramMode) {
+            // CGRAM
+            const data = (value & 0x01) << 4 | (value & 0x02) << 2 | value & 0x04 | (value & 0x08) >> 2 | (value & 0x10) >> 4;
+            this.cgram[this.addr] = data;
+            this.addr = (this.addr + 1) % 64;
+            this.cgramUpdated = true;
+        } else {
+            // DRAM
+            const mode = this.incrementMode ? 1 : -1;
+            this.ddram[this.addr] = value;
+            this.addr = (this.addr + mode) % 128, this.shiftMode && (this.shift = (this.shift + mode) % 40);
+        }
+    }
+}
+
+
 function $382e02c9bbd5d50b$var$pinPort(e) {
     let port;
     let pin = e.getAttribute("pin");
@@ -22333,12 +22920,12 @@ function $382e02c9bbd5d50b$var$pinPort(e) {
 }
 const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
     build: async function(sketch, files = []) {
-        if (!window["__AVR8jsCache"]) window["__AVR8jsCache"] = {};
+        if (!window.__AVR8jsCache) window.__AVR8jsCache = {};
         let body = JSON.stringify({
             sketch: sketch,
             files: files
         });
-        if (window["__AVR8jsCache"][body]) return window["__AVR8jsCache"][body];
+        if (window.__AVR8jsCache[body]) return window.__AVR8jsCache[body];
         else {
             const resp = await fetch("https://hexi.wokwi.com/build", {
                 method: "POST",
@@ -22350,12 +22937,12 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                 body: body
             });
             const rslt = await resp.json();
-            window["__AVR8jsCache"][body] = rslt;
+            window.__AVR8jsCache[body] = rslt;
             return rslt;
         }
     },
     buildASM: async function asmToHex(source) {
-        if (!window["__AVR8jsCache"]) window["__AVR8jsCache"] = {};
+        if (!window.__AVR8jsCache) window.__AVR8jsCache = {};
         let body = JSON.stringify({
             files: [
                 {
@@ -22364,7 +22951,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                 }
             ]
         });
-        if (window["__AVR8jsCache"][body]) return window["__AVR8jsCache"][body];
+        if (window.__AVR8jsCache[body]) return window.__AVR8jsCache[body];
         else {
             const resp = await fetch("https://hexi.wokwi.com/asm", {
                 method: "POST",
@@ -22376,7 +22963,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                 body: body
             });
             const rslt = await resp.json();
-            window["__AVR8jsCache"][body] = rslt;
+            window.__AVR8jsCache[body] = rslt;
             return rslt;
         }
     },
@@ -22398,6 +22985,9 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         NeoMatrix.forEach((matrix)=>{
             NeoMatrixController.push(new (0, $d584820596a6d1a3$export$e1e1654c63a0eb5)(matrix.cols * matrix.rows));
         });
+        // Set up the SSD1306
+        const SSD1306 = container?.querySelector("wokwi-ssd1306") || null;
+        const lcd1602 = container?.querySelector("wokwi-lcd1602") || null;
         const runner = new (0, $4edadc2b5de6ce07$export$31e2b2d64952a5f1)(hex);
         for (const PORT of PORTS){
             // Hook to PORTB register
@@ -22449,12 +23039,55 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         runner.usart.onByteTransmit = (value)=>{
             log(String.fromCharCode(value));
         };
+        let ssd1306Controller = null;
+        let lcd1602Controller = null;
+        if (SSD1306 && !lcd1602) {
+            const cpuMillis = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000);
+            const i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
+            ssd1306Controller = new (0, $80a2d79702959753$export$4e603223a90213cc)(cpuMillis);
+            i2cBus.registerDevice(0x3d, ssd1306Controller);
+        } else if (lcd1602) {
+            const cpuMillis = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000);
+            const i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
+            lcd1602Controller = new (0, $47ee68282ac4f23a$export$c3787bd0c90a66b8)(cpuMillis);
+            i2cBus.registerDevice((0, $47ee68282ac4f23a$export$dd8dc45f6c3d9010), lcd1602Controller);
+        }
         const timeSpan = container?.querySelector("#simulation-time");
         const cpuPerf = new (0, $86959eedeb15e50e$export$c3b37e94fdf214dd)(runner.cpu, MHZ);
         runner.execute((cpu)=>{
             const time = (0, $156f50b496497e4c$export$3203edd9e5edd663)(cpu.cycles / MHZ);
             const speed = (cpuPerf.update() * 100).toFixed(0);
             if (timeSpan) timeSpan.textContent = `Simulation time: ${time} (${speed}%)`;
+            if (SSD1306 && ssd1306Controller) {
+                const frame = ssd1306Controller.update();
+                if (frame) {
+                    ssd1306Controller.toImageData(SSD1306.imageData);
+                    SSD1306.redraw();
+                }
+            }
+            if (lcd1602 && lcd1602Controller) {
+                const lcd = lcd1602Controller.update();
+                // Check component
+                if (lcd) {
+                    // Update LCD1602
+                    lcd1602.blink = lcd.blink;
+                    lcd1602.cursor = lcd.cursor;
+                    lcd1602.cursorX = lcd.cursorX;
+                    lcd1602.cursorY = lcd.cursorY;
+                    lcd1602.characters = lcd.characters;
+                    lcd1602.backlight = lcd.backlight;
+                    // Check custom character
+                    if (lcd.cgramUpdated) {
+                        const font = lcd1602.font.slice(0);
+                        const cgramChars = lcd.cgram.slice(0, 0x40);
+                        // Set character
+                        font.set(cgramChars, 0);
+                        font.set(cgramChars, 0x40);
+                        // Get character
+                        lcd1602.font = font;
+                    }
+                }
+            }
             for(let i = 0; i < NeoMatrix.length; i++){
                 let pixels = NeoMatrixController[i]?.update(cpuNanos());
                 if (pixels) {
