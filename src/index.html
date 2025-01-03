@@ -33,7 +33,7 @@
             const input = document.getElementById("stdin")
 
             if (window.runner) {
-                const value = input ? .value || ""
+                const value = input?.value || ""
 
                 toTerminal(value + "\n")
                 window.runner.serial(value)
@@ -95,7 +95,7 @@
 
             let content = Edrys.module.config.modules || ""
 
-            content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + 'Config'] ? .modules || "")
+            content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + 'Config']?.modules || "")
 
             document.getElementById("modules").innerHTML = content
 
@@ -116,7 +116,7 @@
                 body,
                 module
             }) => {
-                if (subject === (Edrys.module.config ? .execute || "execute")) {
+                if (subject === (Edrys.module.config?.execute || "execute")) {
                     try {
                         let data = JSON.parse(body)
                     } catch (e) {
