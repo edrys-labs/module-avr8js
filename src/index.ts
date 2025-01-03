@@ -5,6 +5,9 @@ import { formatTime } from './format-time'
 import { CPUPerformance } from './cpu-performance'
 import { PinState } from 'avr8js'
 import { WS2812Controller } from './ws2812'
+import { I2CBus } from './i2c-bus'
+import { SSD1306Controller } from './ssd1306'
+import { LCD1602Controller, LCD1602_ADDR } from './lcd1602'
 
 import {
   BuzzerElement,
@@ -12,7 +15,11 @@ import {
   NeopixelMatrixElement,
   PushbuttonElement,
   SevenSegmentElement,
+  SSD1306Element,
+  LCD1602Element,
 } from '@wokwi/elements'
+
+declare const window: any
 
 function pinPort(e: any): [number | null, string | null] {
   let port: PORT | null
@@ -35,15 +42,21 @@ function pinPort(e: any): [number | null, string | null] {
 }
 
 const AVR8js = {
-  build: async function (sketch: string, files = []) {
-    if (!window['__AVR8jsCache']) {
-      window['__AVR8jsCache'] = {}
+  build: async function (
+    sketch: string,
+    files: { name: string; content: string }[] = []
+  ) {
+    if (!window.__AVR8jsCache) {
+      window.__AVR8jsCache = {}
     }
 
-    let body = JSON.stringify({ sketch: sketch, files })
+    let body = JSON.stringify({
+      sketch,
+      files,
+    })
 
-    if (window['__AVR8jsCache'][body]) {
-      return window['__AVR8jsCache'][body]
+    if (window.__AVR8jsCache[body]) {
+      return window.__AVR8jsCache[body]
     } else {
       const resp = await fetch('https://hexi.wokwi.com/build', {
         method: 'POST',
@@ -56,21 +69,21 @@ const AVR8js = {
       })
       const rslt = await resp.json()
 
-      window['__AVR8jsCache'][body] = rslt
+      window.__AVR8jsCache[body] = rslt
 
       return rslt
     }
   },
 
   buildASM: async function asmToHex(source: string) {
-    if (!window['__AVR8jsCache']) {
-      window['__AVR8jsCache'] = {}
+    if (!window.__AVR8jsCache) {
+      window.__AVR8jsCache = {}
     }
 
     let body = JSON.stringify({ files: [{ name: 'main.S', content: source }] })
 
-    if (window['__AVR8jsCache'][body]) {
-      return window['__AVR8jsCache'][body]
+    if (window.__AVR8jsCache[body]) {
+      return window.__AVR8jsCache[body]
     } else {
       const resp = await fetch('https://hexi.wokwi.com/asm', {
         method: 'POST',
@@ -84,7 +97,7 @@ const AVR8js = {
 
       const rslt = await resp.json()
 
-      window['__AVR8jsCache'][body] = rslt
+      window.__AVR8jsCache[body] = rslt
 
       return rslt
     }
@@ -128,6 +141,14 @@ const AVR8js = {
     NeoMatrix.forEach((matrix) => {
       NeoMatrixController.push(new WS2812Controller(matrix.cols * matrix.rows))
     })
+
+    // Set up the SSD1306
+    const SSD1306 =
+      container?.querySelector<SSD1306Element & HTMLElement>('wokwi-ssd1306') ||
+      null
+
+    const lcd1602 =
+      container?.querySelector<LCD1602Element>('wokwi-lcd1602') || null
 
     const runner = new AVRRunner(hex)
 
@@ -210,6 +231,24 @@ const AVR8js = {
       log(String.fromCharCode(value))
     }
 
+    let ssd1306Controller: SSD1306Controller | null = null
+    let lcd1602Controller: LCD1602Controller | null = null
+
+    if (SSD1306 && !lcd1602) {
+      const cpuMillis = () =>
+        Math.round((runner.cpu.cycles / runner.FREQ) * 1000)
+      const i2cBus = new I2CBus(runner.twi)
+      ssd1306Controller = new SSD1306Controller(cpuMillis)
+      i2cBus.registerDevice(0x3d, ssd1306Controller)
+    } else if (lcd1602) {
+      const cpuMillis = () =>
+        Math.round((runner.cpu.cycles / runner.FREQ) * 1000)
+
+      const i2cBus = new I2CBus(runner.twi)
+      lcd1602Controller = new LCD1602Controller(cpuMillis)
+      i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller)
+    }
+
     const timeSpan = container?.querySelector('#simulation-time')
 
     const cpuPerf = new CPUPerformance(runner.cpu, MHZ)
@@ -219,6 +258,41 @@ const AVR8js = {
       const speed = (cpuPerf.update() * 100).toFixed(0)
       if (timeSpan)
         timeSpan.textContent = `Simulation time: ${time} (${speed}%)`
+
+      if (SSD1306 && ssd1306Controller) {
+        const frame = ssd1306Controller.update()
+        if (frame) {
+          ssd1306Controller.toImageData(SSD1306.imageData)
+          SSD1306.redraw()
+        }
+      }
+
+      if (lcd1602 && lcd1602Controller) {
+        const lcd = lcd1602Controller.update()
+        // Check component
+        if (lcd) {
+          // Update LCD1602
+          lcd1602.blink = lcd.blink
+          lcd1602.cursor = lcd.cursor
+          lcd1602.cursorX = lcd.cursorX
+          lcd1602.cursorY = lcd.cursorY
+          lcd1602.characters = lcd.characters
+          lcd1602.backlight = lcd.backlight
+
+          // Check custom character
+          if (lcd.cgramUpdated) {
+            const font = lcd1602.font.slice(0)
+            const cgramChars = lcd.cgram.slice(0, 0x40)
+
+            // Set character
+            font.set(cgramChars, 0)
+            font.set(cgramChars, 0x40)
+
+            // Get character
+            lcd1602.font = font
+          }
+        }
+      }
 
       for (let i = 0; i < NeoMatrix.length; i++) {
         let pixels = NeoMatrixController[i]?.update(cpuNanos())
