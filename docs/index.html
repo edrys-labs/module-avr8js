@@ -22165,6 +22165,7 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
         this.twi = new (0, $bdade389ae8e5253$export$2ab34bf4f1a82352)(this.cpu, (0, $bdade389ae8e5253$export$df5a6af6000a55bc), this.FREQ);
         this.serialBuffer = [];
         this.usart = new (0, $37345e8f0c999ca9$export$241bd50152a44a1a)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d), this.speed);
+        this.adc = new (0, $8f33ec1094d0bb3b$export$95f4964dba5d79a7)(this.cpu, (0, $8f33ec1094d0bb3b$export$26c631cc1e869e46));
         this.cpu.readHooks[(0, $37345e8f0c999ca9$export$a1a91e39cb4174d).UDR] = ()=>this.serialBuffer.shift() || 0;
         this.taskScheduler.start();
     }
@@ -22915,7 +22916,8 @@ function $382e02c9bbd5d50b$var$pinPort(e) {
     else port = null;
     return [
         pin % 8,
-        port
+        port,
+        pin
     ];
 }
 const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
@@ -22980,6 +22982,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         const SEG7 = Array.from(container?.querySelectorAll("wokwi-7segment") || []);
         const BUZZER = Array.from(container?.querySelectorAll("wokwi-buzzer") || []);
         const PushButton = Array.from(container?.querySelectorAll("wokwi-pushbutton") || []);
+        const PotentiometerElement = Array.from(container?.querySelectorAll("wokwi-potentiometer") || []);
         const NeoMatrix = Array.from(container?.querySelectorAll("wokwi-neopixel-matrix") || []);
         const NeoMatrixController = [];
         NeoMatrix.forEach((matrix)=>{
@@ -23003,6 +23006,16 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                         button.addEventListener("button-release", ()=>{
                             if (runner) port.setPin(pin, false);
                         });
+                    }
+                });
+                PotentiometerElement.forEach((e)=>{
+                    const [pin, prt, originalPin] = $382e02c9bbd5d50b$var$pinPort(e);
+                    if (typeof pin === "number" && prt === PORT && originalPin !== null) {
+                        console.warn("Potentiometer found", e, pin, prt, PORT);
+                        e.oninput = (event)=>{
+                            runner.adc.channelValues[originalPin] = event.detail * 5 / 1023;
+                        };
+                        runner.adc.channelValues[originalPin] = e.value * 5 / 1023;
                     }
                 });
                 port.addListener((value)=>{

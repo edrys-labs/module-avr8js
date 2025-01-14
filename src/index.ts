@@ -17,11 +17,12 @@ import {
   SevenSegmentElement,
   SSD1306Element,
   LCD1602Element,
+  PotentiometerElement,
 } from '@wokwi/elements'
 
 declare const window: any
 
-function pinPort(e: any): [number | null, string | null] {
+function pinPort(e: any): [number | null, string | null, number | null] {
   let port: PORT | null
   let pin = e.getAttribute('pin')
   pin = pin ? parseInt(pin, 10) : null
@@ -38,7 +39,7 @@ function pinPort(e: any): [number | null, string | null] {
     port = null
   }
 
-  return [pin % 8, port]
+  return [pin % 8, port, pin]
 }
 
 const AVR8js = {
@@ -131,6 +132,13 @@ const AVR8js = {
       ) || []
     )
 
+    const PotentiometerElement: Array<PotentiometerElement & HTMLElement> =
+      Array.from(
+        container?.querySelectorAll<PotentiometerElement & HTMLElement>(
+          'wokwi-potentiometer'
+        ) || []
+      )
+
     const NeoMatrix: Array<NeopixelMatrixElement & HTMLElement> = Array.from(
       container?.querySelectorAll<NeopixelMatrixElement & HTMLElement>(
         'wokwi-neopixel-matrix'
@@ -174,6 +182,18 @@ const AVR8js = {
                 port.setPin(pin, false)
               }
             })
+          }
+        })
+
+        PotentiometerElement.forEach((e) => {
+          const [pin, prt, originalPin] = pinPort(e)
+          if (typeof pin === 'number' && prt === PORT && originalPin !== null) {
+            console.warn('Potentiometer found', e, pin, prt, PORT)
+            e.oninput = (event) => {
+              runner.adc.channelValues[originalPin] = (event.detail * 5) / 1023
+            }
+
+            runner.adc.channelValues[originalPin] = (e.value * 5) / 1023
           }
         })
 

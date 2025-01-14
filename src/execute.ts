@@ -3,8 +3,10 @@ import {
   avrInterrupt,
   AVRIOPort,
   AVRTimer,
+  AVRADC,
   AVRUSART,
   CPU,
+  adcConfig,
   timer0Config,
   timer1Config,
   timer2Config,
@@ -33,6 +35,7 @@ export class AVRRunner {
   readonly timer2: AVRTimer
   readonly port = new Map<PORT, AVRIOPort>()
   readonly usart: AVRUSART
+  readonly adc: AVRADC
   readonly speed = 16e6 // 16 MHZ
   readonly workUnitCycles = 500000
   readonly taskScheduler = new MicroTaskScheduler()
@@ -58,6 +61,7 @@ export class AVRRunner {
     this.serialBuffer = []
 
     this.usart = new AVRUSART(this.cpu, usart0Config, this.speed)
+    this.adc = new AVRADC(this.cpu, adcConfig)
 
     this.cpu.readHooks[usart0Config.UDR] = () => this.serialBuffer.shift() || 0
 
