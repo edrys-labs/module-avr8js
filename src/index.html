@@ -10,6 +10,21 @@
     <meta name="description"
         content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-editor' target='_blank'>module-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be send via topic `execute`, of for more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>" />
     <meta name="show-in" content="*" />
+    <meta 
+      name="module-config" 
+      content="{
+        'config': {
+          'execute': {
+            'type': string,
+            'hint': 'Message that the module will listen to (default: execute)',
+          },
+          'modules': {
+            'type': text-area,
+            'hint': 'HTML code to be injected in the module',
+          },
+        },
+      }" 
+    />
 
     <script src="https://edrys-labs.github.io/module/edrys.js"></script>
     <script defer src="https://edrys-labs.github.io/module/vendor/alpine.min.js"></script>
