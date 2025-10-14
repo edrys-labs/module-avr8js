@@ -8,6 +8,7 @@ import { WS2812Controller } from './ws2812'
 import { I2CBus } from './i2c-bus'
 import { SSD1306Controller } from './ssd1306'
 import { LCD1602Controller, LCD1602_ADDR } from './lcd1602'
+import { BuzzerAudio, ServoController } from './controllers'
 
 import {
   BuzzerElement,
@@ -18,81 +19,14 @@ import {
   SSD1306Element,
   LCD1602Element,
   PotentiometerElement,
+  ServoElement,
 } from '@wokwi/elements'
 
 declare const window: any
 
-// Audio context for buzzer sound generation
-class BuzzerAudio {
-  private audioContext: AudioContext | null = null
-  private oscillators: Map<BuzzerElement, { oscillator: OscillatorNode; gainNode: GainNode }> = new Map()
-  private isInitialized = false
-
-  constructor() {
-    // Add click listener to enable audio on first user interaction
-    const enableAudio = () => {
-      this.initializeAudio()
-      document.removeEventListener('click', enableAudio)
-      document.removeEventListener('touchstart', enableAudio)
-    }
-    document.addEventListener('click', enableAudio)
-    document.addEventListener('touchstart', enableAudio)
-  }
-
-  private async initializeAudio() {
-    if (this.isInitialized) return
-    
-    try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      this.isInitialized = true
-    } catch (error) {
-      console.warn('Web Audio API not supported:', error)
-    }
-  }
-
-  async startTone(buzzer: BuzzerElement, frequency: number = 1000) {
-    await this.initializeAudio()
-    if (!this.audioContext) return
-
-    // Resume audio context if it's suspended (required by browser policies)
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume()
-    }
-
-    // Stop any existing tone for this buzzer
-    this.stopTone(buzzer)
-
-    const oscillator = this.audioContext.createOscillator()
-    const gainNode = this.audioContext.createGain()
-
-    oscillator.connect(gainNode)
-    gainNode.connect(this.audioContext.destination)
-
-    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime)
-    oscillator.type = 'square' // Square wave for buzzer-like sound
-    gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime) // Low volume
-
-    oscillator.start()
-
-    this.oscillators.set(buzzer, { oscillator, gainNode })
-  }
-
-  stopTone(buzzer: BuzzerElement) {
-    const existing = this.oscillators.get(buzzer)
-    if (existing) {
-      existing.oscillator.stop()
-      this.oscillators.delete(buzzer)
-    }
-  }
-
-  stopAllTones() {
-    for (const [buzzer] of this.oscillators) {
-      this.stopTone(buzzer)
-    }
-  }
-}
-
+// Instances of controllers
 const buzzerAudio = new BuzzerAudio()
+const servoController = new ServoController()
 
 function pinPort(e: any): [number | null, string | null, number | null] {
   let port: PORT | null
@@ -198,6 +132,12 @@ const AVR8js = {
       ) || []
     )
 
+    const SERVO: Array<ServoElement & HTMLElement> = Array.from(
+      container?.querySelectorAll<ServoElement & HTMLElement>(
+        'wokwi-servo'
+      ) || []
+    )
+
     const PushButton: Array<PushbuttonElement & HTMLElement> = Array.from(
       container?.querySelectorAll<PushbuttonElement & HTMLElement>(
         'wokwi-pushbutton'
@@ -293,6 +233,18 @@ const AVR8js = {
               } else {
                 buzzerAudio.stopTone(e)
               }
+            }
+          })
+
+          SERVO.forEach((e) => {
+            let [pin, p] = pinPort(e)
+
+            if (typeof pin === 'number' && p === PORT) {
+              const pinState = runner.port.get(p)?.pinState(pin)
+              const pinHigh = pinState === PinState.High
+              const currentTime = cpuNanos() / 1000 // Convert to microseconds
+              
+              servoController.updateServo(e, pinHigh, currentTime)
             }
           })
 
@@ -418,8 +370,12 @@ const AVR8js = {
     const originalStop = runner.stop.bind(runner)
     runner.stop = () => {
       buzzerAudio.stopAllTones()
+      servoController.resetAllServos()
       BUZZER.forEach((e) => {
         e.hasSignal = false
+      })
+      SERVO.forEach((e) => {
+        e.angle = 90 // Reset to center position
       })
       originalStop()
     }

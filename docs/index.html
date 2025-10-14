@@ -22917,8 +22917,8 @@ class $47ee68282ac4f23a$export$c3787bd0c90a66b8 {
 }
 
 
-// Audio context for buzzer sound generation
-class $382e02c9bbd5d50b$var$BuzzerAudio {
+// Controllers index - centralizes all controller exports
+class $7426626e6f624398$export$a720aa3999bce8b5 {
     constructor(){
         this.audioContext = null;
         this.oscillators = new Map();
@@ -22974,7 +22974,54 @@ class $382e02c9bbd5d50b$var$BuzzerAudio {
         for (const [buzzer] of this.oscillators)this.stopTone(buzzer);
     }
 }
-const $382e02c9bbd5d50b$var$buzzerAudio = new $382e02c9bbd5d50b$var$BuzzerAudio();
+
+
+class $4a917380f5343f7f$export$bd34b67ff3c6dca7 {
+    constructor(){
+        this.servos = new Map();
+    }
+    updateServo(servo, pinHigh, currentTime) {
+        let servoData = this.servos.get(servo);
+        if (!servoData) {
+            servoData = {
+                lastPinState: false,
+                pulseStartTime: 0,
+                angle: 90 // Default to center position
+            };
+            this.servos.set(servo, servoData);
+        }
+        // Detect rising edge (start of PWM pulse)
+        if (pinHigh && !servoData.lastPinState) servoData.pulseStartTime = currentTime;
+        // Detect falling edge (end of PWM pulse)
+        if (!pinHigh && servoData.lastPinState) {
+            const pulseWidth = currentTime - servoData.pulseStartTime;
+            // Convert pulse width to servo angle
+            // Standard servo: 1ms = 0°, 1.5ms = 90°, 2ms = 180°
+            // Pulse width is in microseconds (µs)
+            if (pulseWidth >= 500 && pulseWidth <= 2500) {
+                const angle = (pulseWidth - 1000) / 1000 * 180;
+                servoData.angle = Math.max(0, Math.min(180, angle));
+                servo.angle = servoData.angle;
+            }
+        }
+        servoData.lastPinState = pinHigh;
+    }
+    resetAllServos() {
+        for (const [servo, data] of this.servos){
+            servo.angle = 90 // Reset to center position
+            ;
+            data.angle = 90;
+            data.lastPinState = false;
+        }
+    }
+}
+
+
+
+
+// Instances of controllers
+const $382e02c9bbd5d50b$var$buzzerAudio = new (0, $7426626e6f624398$export$a720aa3999bce8b5)();
+const $382e02c9bbd5d50b$var$servoController = new (0, $4a917380f5343f7f$export$bd34b67ff3c6dca7)();
 function $382e02c9bbd5d50b$var$pinPort(e) {
     let port;
     let pin = e.getAttribute("pin");
@@ -23051,6 +23098,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         const LEDs = Array.from(container?.querySelectorAll("wokwi-led") || []);
         const SEG7 = Array.from(container?.querySelectorAll("wokwi-7segment") || []);
         const BUZZER = Array.from(container?.querySelectorAll("wokwi-buzzer") || []);
+        const SERVO = Array.from(container?.querySelectorAll("wokwi-servo") || []);
         const PushButton = Array.from(container?.querySelectorAll("wokwi-pushbutton") || []);
         const PotentiometerElement = Array.from(container?.querySelectorAll("wokwi-potentiometer") || []);
         const NeoMatrix = Array.from(container?.querySelectorAll("wokwi-neopixel-matrix") || []);
@@ -23104,6 +23152,16 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                                 const frequency = e.getAttribute("frequency") || "1000";
                                 $382e02c9bbd5d50b$var$buzzerAudio.startTone(e, parseInt(frequency, 10));
                             } else $382e02c9bbd5d50b$var$buzzerAudio.stopTone(e);
+                        }
+                    });
+                    SERVO.forEach((e)=>{
+                        let [pin, p] = $382e02c9bbd5d50b$var$pinPort(e);
+                        if (typeof pin === "number" && p === PORT) {
+                            const pinState = runner.port.get(p)?.pinState(pin);
+                            const pinHigh = pinState === (0, $12dded1feaa73920$export$b745cd59055324b1).High;
+                            const currentTime = cpuNanos() / 1000 // Convert to microseconds
+                            ;
+                            $382e02c9bbd5d50b$var$servoController.updateServo(e, pinHigh, currentTime);
                         }
                     });
                     SEG7.forEach((e)=>{
@@ -23198,8 +23256,13 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         const originalStop = runner.stop.bind(runner);
         runner.stop = ()=>{
             $382e02c9bbd5d50b$var$buzzerAudio.stopAllTones();
+            $382e02c9bbd5d50b$var$servoController.resetAllServos();
             BUZZER.forEach((e)=>{
                 e.hasSignal = false;
+            });
+            SERVO.forEach((e)=>{
+                e.angle = 90 // Reset to center position
+                ;
             });
             originalStop();
         };
