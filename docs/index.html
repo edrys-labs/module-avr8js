@@ -9,6 +9,18 @@
 
     <meta name="description" content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-editor' target='_blank'>module-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be send via topic `execute`, of for more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>">
     <meta name="show-in" content="*">
+    <meta name="module-config" content="{
+        'config': {
+          'execute': {
+            'type': string,
+            'hint': 'Message that the module will listen to (default: execute)',
+          },
+          'modules': {
+            'type': text-area,
+            'hint': 'HTML code to be injected in the module',
+          },
+        },
+      }">
 
     <script src="https://edrys-labs.github.io/module/edrys.js"></script>
     <script defer="" src="https://edrys-labs.github.io/module/vendor/alpine.min.js"></script>
@@ -22905,6 +22917,64 @@ class $47ee68282ac4f23a$export$c3787bd0c90a66b8 {
 }
 
 
+// Audio context for buzzer sound generation
+class $382e02c9bbd5d50b$var$BuzzerAudio {
+    constructor(){
+        this.audioContext = null;
+        this.oscillators = new Map();
+        this.isInitialized = false;
+        // Add click listener to enable audio on first user interaction
+        const enableAudio = ()=>{
+            this.initializeAudio();
+            document.removeEventListener("click", enableAudio);
+            document.removeEventListener("touchstart", enableAudio);
+        };
+        document.addEventListener("click", enableAudio);
+        document.addEventListener("touchstart", enableAudio);
+    }
+    async initializeAudio() {
+        if (this.isInitialized) return;
+        try {
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.isInitialized = true;
+        } catch (error) {
+            console.warn("Web Audio API not supported:", error);
+        }
+    }
+    async startTone(buzzer, frequency = 1000) {
+        await this.initializeAudio();
+        if (!this.audioContext) return;
+        // Resume audio context if it's suspended (required by browser policies)
+        if (this.audioContext.state === "suspended") await this.audioContext.resume();
+        // Stop any existing tone for this buzzer
+        this.stopTone(buzzer);
+        const oscillator = this.audioContext.createOscillator();
+        const gainNode = this.audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(this.audioContext.destination);
+        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+        oscillator.type = "square" // Square wave for buzzer-like sound
+        ;
+        gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime) // Low volume
+        ;
+        oscillator.start();
+        this.oscillators.set(buzzer, {
+            oscillator: oscillator,
+            gainNode: gainNode
+        });
+    }
+    stopTone(buzzer) {
+        const existing = this.oscillators.get(buzzer);
+        if (existing) {
+            existing.oscillator.stop();
+            this.oscillators.delete(buzzer);
+        }
+    }
+    stopAllTones() {
+        for (const [buzzer] of this.oscillators)this.stopTone(buzzer);
+    }
+}
+const $382e02c9bbd5d50b$var$buzzerAudio = new $382e02c9bbd5d50b$var$BuzzerAudio();
 function $382e02c9bbd5d50b$var$pinPort(e) {
     let port;
     let pin = e.getAttribute("pin");
@@ -23025,7 +23095,16 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                     });
                     BUZZER.forEach((e)=>{
                         let [pin, p] = $382e02c9bbd5d50b$var$pinPort(e);
-                        if (typeof pin === "number" && p === PORT) e.hasSignal = runner.port.get(p)?.pinState(pin) || false;
+                        if (typeof pin === "number" && p === PORT) {
+                            const pinState = runner.port.get(p)?.pinState(pin);
+                            const hasSignal = pinState === (0, $12dded1feaa73920$export$b745cd59055324b1).High;
+                            e.hasSignal = hasSignal;
+                            // Generate audio for buzzer
+                            if (hasSignal) {
+                                const frequency = e.getAttribute("frequency") || "1000";
+                                $382e02c9bbd5d50b$var$buzzerAudio.startTone(e, parseInt(frequency, 10));
+                            } else $382e02c9bbd5d50b$var$buzzerAudio.stopTone(e);
+                        }
                     });
                     SEG7.forEach((e)=>{
                         let [pin, p] = $382e02c9bbd5d50b$var$pinPort(e);
@@ -23115,6 +23194,15 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                 }
             }
         });
+        // Clean up buzzer audio and visual state when runner stops
+        const originalStop = runner.stop.bind(runner);
+        runner.stop = ()=>{
+            $382e02c9bbd5d50b$var$buzzerAudio.stopAllTones();
+            BUZZER.forEach((e)=>{
+                e.hasSignal = false;
+            });
+            originalStop();
+        };
         return runner;
     }
 };
