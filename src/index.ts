@@ -8,7 +8,7 @@ import { WS2812Controller } from './ws2812'
 import { I2CBus } from './i2c-bus'
 import { SSD1306Controller } from './ssd1306'
 import { LCD1602Controller, LCD1602_ADDR } from './lcd1602'
-import { BuzzerAudio, ServoController } from './controllers'
+import { BuzzerAudio, ServoController, DS1307Controller, DS1307_ADDR } from './controllers'
 
 import {
   BuzzerElement,
@@ -20,6 +20,7 @@ import {
   LCD1602Element,
   PotentiometerElement,
   ServoElement,
+  Ds1307Element,
 } from '@wokwi/elements'
 
 declare const window: any
@@ -170,6 +171,9 @@ const AVR8js = {
     const lcd1602 =
       container?.querySelector<LCD1602Element>('wokwi-lcd1602') || null
 
+    const ds1307 =
+      container?.querySelector<Ds1307Element & HTMLElement>('wokwi-ds1307') || null
+
     const runner = new AVRRunner(hex)
 
     for (const PORT of PORTS) {
@@ -287,20 +291,32 @@ const AVR8js = {
 
     let ssd1306Controller: SSD1306Controller | null = null
     let lcd1602Controller: LCD1602Controller | null = null
+    let ds1307Controller: DS1307Controller | null = null
 
-    if (SSD1306 && !lcd1602) {
-      const cpuMillis = () =>
-        Math.round((runner.cpu.cycles / runner.FREQ) * 1000)
-      const i2cBus = new I2CBus(runner.twi)
-      ssd1306Controller = new SSD1306Controller(cpuMillis)
-      i2cBus.registerDevice(0x3d, ssd1306Controller)
-    } else if (lcd1602) {
-      const cpuMillis = () =>
-        Math.round((runner.cpu.cycles / runner.FREQ) * 1000)
-
-      const i2cBus = new I2CBus(runner.twi)
-      lcd1602Controller = new LCD1602Controller(cpuMillis)
-      i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller)
+    // Set up I2C bus and devices
+    const cpuMillis = () =>
+      Math.round((runner.cpu.cycles / runner.FREQ) * 1000)
+    
+    let i2cBus: I2CBus | null = null
+    
+    // Initialize I2C bus if any I2C devices are present
+    if (SSD1306 || lcd1602 || ds1307) {
+      i2cBus = new I2CBus(runner.twi)
+      
+      if (SSD1306) {
+        ssd1306Controller = new SSD1306Controller(cpuMillis)
+        i2cBus.registerDevice(0x3d, ssd1306Controller)
+      }
+      
+      if (lcd1602) {
+        lcd1602Controller = new LCD1602Controller(cpuMillis)
+        i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller)
+      }
+      
+      if (ds1307) {
+        ds1307Controller = new DS1307Controller(cpuMillis)
+        i2cBus.registerDevice(DS1307_ADDR, ds1307Controller)
+      }
     }
 
     const timeSpan = container?.querySelector('#simulation-time')

@@ -23017,6 +23017,149 @@ class $4a917380f5343f7f$export$bd34b67ff3c6dca7 {
 }
 
 
+const $497caf50a54906b7$export$fdcc7c6a4074abc4 = 0x68;
+// DS1307 Register addresses
+const $497caf50a54906b7$var$DS1307_REG_SECONDS = 0x00;
+const $497caf50a54906b7$var$DS1307_REG_MINUTES = 0x01;
+const $497caf50a54906b7$var$DS1307_REG_HOURS = 0x02;
+const $497caf50a54906b7$var$DS1307_REG_WEEKDAY = 0x03;
+const $497caf50a54906b7$var$DS1307_REG_DATE = 0x04;
+const $497caf50a54906b7$var$DS1307_REG_MONTH = 0x05;
+const $497caf50a54906b7$var$DS1307_REG_YEAR = 0x06;
+const $497caf50a54906b7$var$DS1307_REG_CONTROL = 0x07;
+const $497caf50a54906b7$var$DS1307_REG_RAM_START = 0x08;
+const $497caf50a54906b7$var$DS1307_REG_RAM_END = 0x3F;
+// Clock halt bit in seconds register
+const $497caf50a54906b7$var$DS1307_CH_BIT = 0x80;
+// 12/24 hour mode bit in hours register
+const $497caf50a54906b7$var$DS1307_12_24_BIT = 0x40;
+const $497caf50a54906b7$var$DS1307_AM_PM_BIT = 0x20;
+// Convert decimal to BCD (Binary Coded Decimal)
+function $497caf50a54906b7$var$decToBcd(dec) {
+    return (Math.floor(dec / 10) & 0x0F) << 4 | dec % 10;
+}
+// Convert BCD to decimal
+function $497caf50a54906b7$var$bcdToDec(bcd) {
+    return (bcd >> 4 & 0x0F) * 10 + (bcd & 0x0F);
+}
+class $497caf50a54906b7$export$fba8eb9ee18edd0a {
+    constructor(cpuMillis){
+        this.cpuMillis = cpuMillis;
+        this.registers = new Uint8Array(64) // 64 bytes total (8 clock + 56 RAM)
+        ;
+        this.currentRegister = 0;
+        this.registerSet = false;
+        this.clockHalted = false;
+        this.is24HourMode = true;
+        this.startTime = Date.now();
+        this.initializeRTC();
+    }
+    initializeRTC() {
+        // Initialize with current system time
+        const now = new Date();
+        this.registers[$497caf50a54906b7$var$DS1307_REG_SECONDS] = $497caf50a54906b7$var$decToBcd(now.getSeconds());
+        this.registers[$497caf50a54906b7$var$DS1307_REG_MINUTES] = $497caf50a54906b7$var$decToBcd(now.getMinutes());
+        if (this.is24HourMode) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(now.getHours());
+        else {
+            let hours = now.getHours();
+            const isPM = hours >= 12;
+            if (hours === 0) hours = 12;
+            else if (hours > 12) hours -= 12;
+            this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(hours) | $497caf50a54906b7$var$DS1307_12_24_BIT;
+            if (isPM) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] |= $497caf50a54906b7$var$DS1307_AM_PM_BIT;
+        }
+        this.registers[$497caf50a54906b7$var$DS1307_REG_WEEKDAY] = now.getDay() + 1 // DS1307 uses 1-7
+        ;
+        this.registers[$497caf50a54906b7$var$DS1307_REG_DATE] = $497caf50a54906b7$var$decToBcd(now.getDate());
+        this.registers[$497caf50a54906b7$var$DS1307_REG_MONTH] = $497caf50a54906b7$var$decToBcd(now.getMonth() + 1);
+        this.registers[$497caf50a54906b7$var$DS1307_REG_YEAR] = $497caf50a54906b7$var$decToBcd(now.getFullYear() % 100);
+        // Control register (default: no square wave output)
+        this.registers[$497caf50a54906b7$var$DS1307_REG_CONTROL] = 0x00;
+    }
+    updateClock() {
+        if (this.clockHalted) return;
+        // Calculate elapsed time since start in seconds
+        const elapsedMs = Date.now() - this.startTime;
+        const totalSeconds = Math.floor(elapsedMs / 1000);
+        // Get initial time from when RTC was started
+        const initialTime = new Date(this.startTime);
+        const currentTime = new Date(this.startTime + elapsedMs);
+        // Update registers with current time
+        this.registers[$497caf50a54906b7$var$DS1307_REG_SECONDS] = $497caf50a54906b7$var$decToBcd(currentTime.getSeconds());
+        this.registers[$497caf50a54906b7$var$DS1307_REG_MINUTES] = $497caf50a54906b7$var$decToBcd(currentTime.getMinutes());
+        if (this.is24HourMode) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(currentTime.getHours());
+        else {
+            let hours = currentTime.getHours();
+            const isPM = hours >= 12;
+            if (hours === 0) hours = 12;
+            else if (hours > 12) hours -= 12;
+            this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(hours) | $497caf50a54906b7$var$DS1307_12_24_BIT;
+            if (isPM) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] |= $497caf50a54906b7$var$DS1307_AM_PM_BIT;
+        }
+        this.registers[$497caf50a54906b7$var$DS1307_REG_WEEKDAY] = currentTime.getDay() + 1;
+        this.registers[$497caf50a54906b7$var$DS1307_REG_DATE] = $497caf50a54906b7$var$decToBcd(currentTime.getDate());
+        this.registers[$497caf50a54906b7$var$DS1307_REG_MONTH] = $497caf50a54906b7$var$decToBcd(currentTime.getMonth() + 1);
+        this.registers[$497caf50a54906b7$var$DS1307_REG_YEAR] = $497caf50a54906b7$var$decToBcd(currentTime.getFullYear() % 100);
+    }
+    i2cConnect(addr, write) {
+        return addr === $497caf50a54906b7$export$fdcc7c6a4074abc4;
+    }
+    i2cWriteByte(value) {
+        if (!this.registerSet) {
+            // First byte is register address
+            this.currentRegister = value & 0x3F // DS1307 has 64 registers
+            ;
+            this.registerSet = true;
+        } else // Subsequent bytes are data
+        if (this.currentRegister <= $497caf50a54906b7$var$DS1307_REG_RAM_END) {
+            this.registers[this.currentRegister] = value;
+            // Handle special cases for clock registers
+            if (this.currentRegister === $497caf50a54906b7$var$DS1307_REG_SECONDS) {
+                this.clockHalted = (value & $497caf50a54906b7$var$DS1307_CH_BIT) !== 0;
+                if (!this.clockHalted) // If clock is being started, reset our reference time
+                this.startTime = Date.now();
+            } else if (this.currentRegister === $497caf50a54906b7$var$DS1307_REG_HOURS) this.is24HourMode = (value & $497caf50a54906b7$var$DS1307_12_24_BIT) === 0;
+            this.currentRegister = this.currentRegister + 1 & 0x3F;
+        }
+        return true;
+    }
+    i2cReadByte(acked) {
+        this.updateClock();
+        const value = this.registers[this.currentRegister] || 0;
+        if (acked) this.currentRegister = this.currentRegister + 1 & 0x3F;
+        return value;
+    }
+    i2cDisconnect() {
+        this.registerSet = false;
+    }
+    // Utility methods for external access
+    getCurrentTime() {
+        this.updateClock();
+        const seconds = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_SECONDS] & 0x7F);
+        const minutes = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_MINUTES] & 0x7F);
+        let hours;
+        if (this.is24HourMode) hours = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] & 0x3F);
+        else {
+            hours = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] & 0x1F);
+            if (this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] & $497caf50a54906b7$var$DS1307_AM_PM_BIT) {
+                if (hours !== 12) hours += 12;
+            } else if (hours === 12) hours = 0;
+        }
+        const date = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_DATE] & 0x3F);
+        const month = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_MONTH] & 0x1F) - 1;
+        const year = 2000 + $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_YEAR]);
+        return new Date(year, month, date, hours, minutes, seconds);
+    }
+    isClockHalted() {
+        return this.clockHalted;
+    }
+    setTime(date) {
+        this.startTime = date.getTime();
+        this.updateClock();
+    }
+}
+
+
 
 
 // Instances of controllers
@@ -23109,6 +23252,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         // Set up the SSD1306
         const SSD1306 = container?.querySelector("wokwi-ssd1306") || null;
         const lcd1602 = container?.querySelector("wokwi-lcd1602") || null;
+        const ds1307 = container?.querySelector("wokwi-ds1307") || null;
         const runner = new (0, $4edadc2b5de6ce07$export$31e2b2d64952a5f1)(hex);
         for (const PORT of PORTS){
             // Hook to PORTB register
@@ -23191,16 +23335,25 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         };
         let ssd1306Controller = null;
         let lcd1602Controller = null;
-        if (SSD1306 && !lcd1602) {
-            const cpuMillis = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000);
-            const i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
-            ssd1306Controller = new (0, $80a2d79702959753$export$4e603223a90213cc)(cpuMillis);
-            i2cBus.registerDevice(0x3d, ssd1306Controller);
-        } else if (lcd1602) {
-            const cpuMillis = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000);
-            const i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
-            lcd1602Controller = new (0, $47ee68282ac4f23a$export$c3787bd0c90a66b8)(cpuMillis);
-            i2cBus.registerDevice((0, $47ee68282ac4f23a$export$dd8dc45f6c3d9010), lcd1602Controller);
+        let ds1307Controller = null;
+        // Set up I2C bus and devices
+        const cpuMillis = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000);
+        let i2cBus = null;
+        // Initialize I2C bus if any I2C devices are present
+        if (SSD1306 || lcd1602 || ds1307) {
+            i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
+            if (SSD1306) {
+                ssd1306Controller = new (0, $80a2d79702959753$export$4e603223a90213cc)(cpuMillis);
+                i2cBus.registerDevice(0x3d, ssd1306Controller);
+            }
+            if (lcd1602) {
+                lcd1602Controller = new (0, $47ee68282ac4f23a$export$c3787bd0c90a66b8)(cpuMillis);
+                i2cBus.registerDevice((0, $47ee68282ac4f23a$export$dd8dc45f6c3d9010), lcd1602Controller);
+            }
+            if (ds1307) {
+                ds1307Controller = new (0, $497caf50a54906b7$export$fba8eb9ee18edd0a)(cpuMillis);
+                i2cBus.registerDevice((0, $497caf50a54906b7$export$fdcc7c6a4074abc4), ds1307Controller);
+            }
         }
         const timeSpan = container?.querySelector("#simulation-time");
         const cpuPerf = new (0, $86959eedeb15e50e$export$c3b37e94fdf214dd)(runner.cpu, MHZ);
@@ -23238,6 +23391,9 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                     }
                 }
             }
+            // DS1307 RTC doesn't need visual updates in the execution loop
+            // It operates purely through I2C communication
+            // The time is automatically updated when accessed via I2C
             for(let i = 0; i < NeoMatrix.length; i++){
                 let pixels = NeoMatrixController[i]?.update(cpuNanos());
                 if (pixels) {
