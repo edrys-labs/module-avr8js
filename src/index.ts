@@ -8,7 +8,13 @@ import { WS2812Controller } from './ws2812'
 import { I2CBus } from './i2c-bus'
 import { SSD1306Controller } from './ssd1306'
 import { LCD1602Controller, LCD1602_ADDR } from './lcd1602'
-import { BuzzerAudio, ServoController, DS1307Controller, DS1307_ADDR } from './controllers'
+import { 
+  BuzzerAudio, 
+  ServoController, 
+  DS1307Controller, 
+  DS1307_ADDR, 
+  NTCTemperatureSensorController 
+} from './controllers'
 
 import {
   BuzzerElement,
@@ -21,6 +27,7 @@ import {
   PotentiometerElement,
   ServoElement,
   Ds1307Element,
+  NTCTemperatureSensorElement,
 } from '@wokwi/elements'
 
 declare const window: any
@@ -28,6 +35,7 @@ declare const window: any
 // Instances of controllers
 const buzzerAudio = new BuzzerAudio()
 const servoController = new ServoController()
+const ntcController = new NTCTemperatureSensorController()
 
 function pinPort(e: any): [number | null, string | null, number | null] {
   let port: PORT | null
@@ -174,6 +182,12 @@ const AVR8js = {
     const ds1307 =
       container?.querySelector<Ds1307Element & HTMLElement>('wokwi-ds1307') || null
 
+    const NTCSensors: Array<NTCTemperatureSensorElement & HTMLElement> = Array.from(
+      container?.querySelectorAll<NTCTemperatureSensorElement & HTMLElement>(
+        'wokwi-ntc-temperature-sensor'
+      ) || []
+    )
+
     const runner = new AVRRunner(hex)
 
     for (const PORT of PORTS) {
@@ -210,6 +224,14 @@ const AVR8js = {
             }
 
             runner.adc.channelValues[originalPin] = (e.value * 5) / 1023
+          }
+        })
+
+        // Initialize NTC temperature sensors
+        NTCSensors.forEach((sensor) => {
+          const [pin, prt, originalPin] = pinPort(sensor)
+          if (typeof pin === 'number' && prt === PORT && originalPin !== null) {
+            ntcController.initializeSensor(sensor, runner)
           }
         })
 
@@ -387,6 +409,7 @@ const AVR8js = {
     runner.stop = () => {
       buzzerAudio.stopAllTones()
       servoController.resetAllServos()
+      ntcController.cleanup()
       BUZZER.forEach((e) => {
         e.hasSignal = false
       })

@@ -23160,11 +23160,278 @@ class $497caf50a54906b7$export$fba8eb9ee18edd0a {
 }
 
 
+class $8d397629722cb67b$export$976f601a95fc6e2c {
+    constructor(config, callbacks){
+        this.config = config;
+        this.callbacks = callbacks;
+        this.isDragging = false;
+        this.startX = 0;
+        this.startY = 0;
+        this.initialLeft = 0;
+        this.initialTop = 0;
+        this.container = this.createSliderElement();
+        this.setupDragFunctionality();
+    }
+    createSliderElement() {
+        // Create container
+        const container = document.createElement("div");
+        container.style.cssText = `
+      position: absolute;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-family: Arial, sans-serif;
+      font-size: 12px;
+      z-index: 1000;
+      cursor: move;
+      user-select: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    `;
+        // Create slider input
+        this.slider = document.createElement("input");
+        this.slider.type = "range";
+        this.slider.min = this.config.min.toString();
+        this.slider.max = this.config.max.toString();
+        this.slider.value = this.config.value.toString();
+        this.slider.step = this.config.step.toString();
+        this.slider.style.cssText = `
+      width: ${this.config.width || 120}px;
+      height: 20px;
+      cursor: pointer;
+    `;
+        // Create display span
+        this.display = document.createElement("span");
+        this.display.style.cssText = `
+      min-width: 50px;
+      text-align: center;
+      font-weight: bold;
+      color: #0066cc;
+    `;
+        this.updateDisplay(this.config.value);
+        // Add elements to container
+        container.appendChild(this.slider);
+        container.appendChild(this.display);
+        // Setup slider event listener
+        this.slider.addEventListener("input", ()=>{
+            const value = parseFloat(this.slider.value);
+            this.updateDisplay(value);
+            this.callbacks.onValueChange(value);
+        });
+        return container;
+    }
+    updateDisplay(value) {
+        this.display.textContent = `${value.toFixed(1)}${this.config.unit}`;
+    }
+    setupDragFunctionality() {
+        // Mouse events
+        this.container.addEventListener("mousedown", (e)=>{
+            // Don't start dragging if clicking on the slider itself
+            if (e.target.tagName === "INPUT") return;
+            this.startDrag(e.clientX, e.clientY);
+            e.preventDefault();
+        });
+        document.addEventListener("mousemove", (e)=>{
+            if (!this.isDragging) return;
+            this.updatePosition(e.clientX, e.clientY);
+        });
+        document.addEventListener("mouseup", ()=>{
+            this.isDragging = false;
+        });
+        // Touch events for mobile support
+        this.container.addEventListener("touchstart", (e)=>{
+            if (e.target.tagName === "INPUT") return;
+            if (e.touches.length === 1) {
+                const touch = e.touches[0];
+                this.startDrag(touch.clientX, touch.clientY);
+                e.preventDefault();
+            }
+        });
+        document.addEventListener("touchmove", (e)=>{
+            if (!this.isDragging || e.touches.length !== 1) return;
+            const touch = e.touches[0];
+            this.updatePosition(touch.clientX, touch.clientY);
+            e.preventDefault();
+        });
+        document.addEventListener("touchend", ()=>{
+            this.isDragging = false;
+        });
+    }
+    startDrag(clientX, clientY) {
+        this.isDragging = true;
+        this.startX = clientX;
+        this.startY = clientY;
+        const rect = this.container.getBoundingClientRect();
+        const parentRect = this.container.offsetParent?.getBoundingClientRect() || {
+            left: 0,
+            top: 0
+        };
+        this.initialLeft = rect.left - parentRect.left;
+        this.initialTop = rect.top - parentRect.top;
+    }
+    updatePosition(clientX, clientY) {
+        const deltaX = clientX - this.startX;
+        const deltaY = clientY - this.startY;
+        this.container.style.left = `${this.initialLeft + deltaX}px`;
+        this.container.style.top = `${this.initialTop + deltaY}px`;
+    }
+    // Public methods
+    setValue(value) {
+        value = Math.max(this.config.min, Math.min(this.config.max, value));
+        this.slider.value = value.toString();
+        this.updateDisplay(value);
+    }
+    getValue() {
+        return parseFloat(this.slider.value);
+    }
+    setPosition(left, top) {
+        this.container.style.left = `${left}px`;
+        this.container.style.top = `${top}px`;
+    }
+    appendTo(parent) {
+        parent.appendChild(this.container);
+    }
+    remove() {
+        if (this.container.parentNode) this.container.parentNode.removeChild(this.container);
+    }
+    getElement() {
+        return this.container;
+    }
+}
+
+
+class $9cac5ab4c27a7045$export$e0bad4831cb237ba {
+    constructor(){
+        this.sensors = new Map();
+    }
+    initializeSensor(sensor, runner) {
+        if (this.sensors.has(sensor)) return; // Already initialized
+        // Create slider configuration
+        const sliderConfig = {
+            min: -40,
+            max: 125,
+            value: 25,
+            step: 0.1,
+            unit: "\xb0C",
+            label: "Temperature",
+            width: 120
+        };
+        // Create slider callbacks
+        const sliderCallbacks = {
+            onValueChange: (temperature)=>{
+                const sensorData = this.sensors.get(sensor);
+                if (sensorData) {
+                    sensorData.temperature = temperature;
+                    this.updateSensorADC(sensor, temperature, runner);
+                }
+            }
+        };
+        // Create the draggable slider
+        const slider = new (0, $8d397629722cb67b$export$976f601a95fc6e2c)(sliderConfig, sliderCallbacks);
+        // Position the slider above the sensor
+        const sensorRect = sensor.getBoundingClientRect();
+        const parentRect = sensor.offsetParent?.getBoundingClientRect() || {
+            left: 0,
+            top: 0
+        };
+        const left = sensorRect.left - parentRect.left;
+        const top = sensorRect.top - parentRect.top - 60;
+        slider.setPosition(left, top);
+        // Add to the same parent as the sensor
+        const parent = sensor.offsetParent || document.body;
+        slider.appendTo(parent);
+        // Store sensor data
+        const sensorData = {
+            temperature: 25.0,
+            slider: slider
+        };
+        this.sensors.set(sensor, sensorData);
+        // Initial ADC setup
+        this.updateSensorADC(sensor, 25.0, runner);
+    }
+    calculateNTCResistance(temperature) {
+        // Standard NTC thermistor calculation using Steinhart-Hart equation
+        // Using typical 10kΩ NTC thermistor parameters
+        const R0 = 10000 // Resistance at 25°C (10kΩ)
+        ;
+        const T0 = 298.15 // 25°C in Kelvin
+        ;
+        const B = 3950 // B parameter (typical value)
+        ;
+        const T = temperature + 273.15 // Convert to Kelvin
+        ;
+        const resistance = R0 * Math.exp(B * (1 / T - 1 / T0));
+        return resistance;
+    }
+    updateSensorADC(sensor, temperature, runner) {
+        const pin = sensor.getAttribute("pin");
+        if (!pin) return;
+        const pinNumber = parseInt(pin, 10);
+        if (isNaN(pinNumber)) return;
+        // Calculate voltage divider output
+        // Assuming a 10kΩ pull-up resistor to 5V
+        const VCC = 5.0;
+        const R_PULLUP = 10000;
+        const R_NTC = this.calculateNTCResistance(temperature);
+        // Voltage divider: V_out = VCC * R_NTC / (R_PULLUP + R_NTC)
+        const voltage = VCC * R_NTC / (R_PULLUP + R_NTC);
+        // Convert to ADC value (0-1023 for 10-bit ADC)
+        const adcValue = voltage / VCC * 1023;
+        // Set the ADC channel value
+        if (runner.adc && runner.adc.channelValues) runner.adc.channelValues[pinNumber] = voltage;
+    }
+    getTemperature(sensor) {
+        const sensorData = this.sensors.get(sensor);
+        return sensorData ? sensorData.temperature : 25.0;
+    }
+    setTemperature(sensor, temperature) {
+        const sensorData = this.sensors.get(sensor);
+        if (sensorData) {
+            temperature = Math.max(-40, Math.min(125, temperature)) // Clamp to valid range
+            ;
+            sensorData.temperature = temperature;
+            sensorData.slider.setValue(temperature);
+        }
+    }
+    cleanup() {
+        for (const [sensor, data] of this.sensors)data.slider.remove();
+        this.sensors.clear();
+    }
+    // Utility method to convert resistance to temperature (for reading actual NTC sensors)
+    resistanceToTemperature(resistance) {
+        const R0 = 10000 // 10kΩ at 25°C
+        ;
+        const T0 = 298.15 // 25°C in Kelvin
+        ;
+        const B = 3950 // B parameter
+        ;
+        const T = 1 / (Math.log(resistance / R0) / B + 1 / T0);
+        return T - 273.15 // Convert back to Celsius
+        ;
+    }
+    // Utility method to get resistance from ADC reading
+    adcToResistance(adcValue, vcc = 5.0, pullupResistor = 10000) {
+        const voltage = adcValue / 1023 * vcc;
+        if (voltage >= vcc) return 0 // Short circuit
+        ;
+        if (voltage <= 0) return Infinity // Open circuit
+        ;
+        // From voltage divider: R_NTC = R_PULLUP * voltage / (VCC - voltage)
+        return pullupResistor * voltage / (vcc - voltage);
+    }
+}
+
+
+
 
 
 // Instances of controllers
 const $382e02c9bbd5d50b$var$buzzerAudio = new (0, $7426626e6f624398$export$a720aa3999bce8b5)();
 const $382e02c9bbd5d50b$var$servoController = new (0, $4a917380f5343f7f$export$bd34b67ff3c6dca7)();
+const $382e02c9bbd5d50b$var$ntcController = new (0, $9cac5ab4c27a7045$export$e0bad4831cb237ba)();
 function $382e02c9bbd5d50b$var$pinPort(e) {
     let port;
     let pin = e.getAttribute("pin");
@@ -23253,6 +23520,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         const SSD1306 = container?.querySelector("wokwi-ssd1306") || null;
         const lcd1602 = container?.querySelector("wokwi-lcd1602") || null;
         const ds1307 = container?.querySelector("wokwi-ds1307") || null;
+        const NTCSensors = Array.from(container?.querySelectorAll("wokwi-ntc-temperature-sensor") || []);
         const runner = new (0, $4edadc2b5de6ce07$export$31e2b2d64952a5f1)(hex);
         for (const PORT of PORTS){
             // Hook to PORTB register
@@ -23279,6 +23547,11 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                         };
                         runner.adc.channelValues[originalPin] = e.value * 5 / 1023;
                     }
+                });
+                // Initialize NTC temperature sensors
+                NTCSensors.forEach((sensor)=>{
+                    const [pin, prt, originalPin] = $382e02c9bbd5d50b$var$pinPort(sensor);
+                    if (typeof pin === "number" && prt === PORT && originalPin !== null) $382e02c9bbd5d50b$var$ntcController.initializeSensor(sensor, runner);
                 });
                 port.addListener((value)=>{
                     LEDs.forEach((e)=>{
@@ -23391,9 +23664,6 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                     }
                 }
             }
-            // DS1307 RTC doesn't need visual updates in the execution loop
-            // It operates purely through I2C communication
-            // The time is automatically updated when accessed via I2C
             for(let i = 0; i < NeoMatrix.length; i++){
                 let pixels = NeoMatrixController[i]?.update(cpuNanos());
                 if (pixels) {
@@ -23413,6 +23683,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         runner.stop = ()=>{
             $382e02c9bbd5d50b$var$buzzerAudio.stopAllTones();
             $382e02c9bbd5d50b$var$servoController.resetAllServos();
+            $382e02c9bbd5d50b$var$ntcController.cleanup();
             BUZZER.forEach((e)=>{
                 e.hasSignal = false;
             });
