@@ -18,6 +18,11 @@ It needs an editor module that sends Arduino code, such as
 access, and the code students write is sent to that third-party server. Successful builds are cached per page,
 so sending the same sketch again doesn't compile it again.
 
+**Libraries:** the server comes with many Arduino libraries (`Servo`, `LiquidCrystal_I2C`, `Adafruit_NeoPixel`,
+`FastLED`, `RTClib`, `DHT`, `Keypad`, `EEPROM`, ...). Some it installs only on request. The module requests them
+when the sketch includes `Adafruit_SSD1306.h`, `Adafruit_ILI9341.h`, `Adafruit_MPU6050.h`, `IRremote.h(pp)`,
+`Stepper.h`, `AccelStepper.h`, `HX711.h` or `SD.h`.
+
 ---
 
 ## Configuration
@@ -229,7 +234,7 @@ Use the `Adafruit_NeoPixel` library in your sketch.
 <wokwi-ds1307></wokwi-ds1307>
 ```
 
-I2C address: `0x68`. Initializes to the current system time. Use the `DS1307RTC` library in your sketch.
+I2C address: `0x68`. Initializes to the current system time. Use the `RTClib` library (`RTC_DS1307`) in your sketch.
 
 ---
 
@@ -391,6 +396,32 @@ modules: |
   <wokwi-ds1307></wokwi-ds1307>
   <wokwi-lcd1602></wokwi-lcd1602>
   <span id='simulation-time'></span>
+```
+
+Arduino sketch (requires `RTClib` and `LiquidCrystal_I2C`):
+```cpp
+#include <RTClib.h>
+#include <LiquidCrystal_I2C.h>
+
+RTC_DS1307 rtc;
+LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+void setup() {
+  rtc.begin();
+  lcd.init();
+  lcd.backlight();
+}
+
+void loop() {
+  char date[] = "DD.MM.YYYY";
+  char time[] = "hh:mm:ss";
+  DateTime now = rtc.now();
+  lcd.setCursor(0, 0);
+  lcd.print(now.toString(date));
+  lcd.setCursor(0, 1);
+  lcd.print(now.toString(time));
+  delay(1000);
+}
 ```
 
 ---

@@ -24207,9 +24207,40 @@ class $2d8917e86023b1fe$export$e1e1654c63a0eb5 {
 const $382e02c9bbd5d50b$var$buzzerAudio = new (0, $7426626e6f624398$export$a720aa3999bce8b5)();
 const $382e02c9bbd5d50b$var$servoController = new (0, $4a917380f5343f7f$export$bd34b67ff3c6dca7)();
 const $382e02c9bbd5d50b$var$ntcController = new (0, $9cac5ab4c27a7045$export$e0bad4831cb237ba)();
+// Arduino libraries that hexi.wokwi.com only installs when libraries.txt lists them
+const $382e02c9bbd5d50b$var$LIBRARIES = {
+    'Adafruit_SSD1306.h': 'Adafruit SSD1306',
+    'Adafruit_ILI9341.h': 'Adafruit ILI9341',
+    'Adafruit_MPU6050.h': 'Adafruit MPU6050',
+    'IRremote.h': 'IRremote',
+    'IRremote.hpp': 'IRremote',
+    'Stepper.h': 'Stepper',
+    'AccelStepper.h': 'AccelStepper',
+    'HX711.h': 'HX711',
+    'SD.h': 'SD'
+};
+/** Adds the libraries the code includes to libraries.txt (merged with a given one). */ function $382e02c9bbd5d50b$var$withLibraries(sketch, files) {
+    const libraries = new Set();
+    for (const file of files.filter((f)=>f.name === 'libraries.txt'))file.content.split('\n').forEach((lib)=>lib.trim() && libraries.add(lib.trim()));
+    for (const code of [
+        sketch,
+        ...files.map((f)=>f.content)
+    ]){
+        for (const [, header] of (code || '').matchAll(/#include\s*[<"]([\w.]+)[>"]/g))if ($382e02c9bbd5d50b$var$LIBRARIES[header]) libraries.add($382e02c9bbd5d50b$var$LIBRARIES[header]);
+    }
+    files = files.filter((f)=>f.name !== 'libraries.txt');
+    if (libraries.size) files.push({
+        name: 'libraries.txt',
+        content: [
+            ...libraries
+        ].join('\n')
+    });
+    return files;
+}
 const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
     build: async function(sketch, files = []) {
         if (!window.__AVR8jsCache) window.__AVR8jsCache = {};
+        files = $382e02c9bbd5d50b$var$withLibraries(sketch, files);
         let body = JSON.stringify({
             sketch: sketch,
             files: files

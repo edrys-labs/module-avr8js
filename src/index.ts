@@ -38,6 +38,37 @@ const buzzerAudio = new BuzzerAudio()
 const servoController = new ServoController()
 const ntcController = new NTCTemperatureSensorController()
 
+// Arduino libraries that hexi.wokwi.com only installs when libraries.txt lists them
+const LIBRARIES: { [header: string]: string } = {
+  'Adafruit_SSD1306.h': 'Adafruit SSD1306',
+  'Adafruit_ILI9341.h': 'Adafruit ILI9341',
+  'Adafruit_MPU6050.h': 'Adafruit MPU6050',
+  'IRremote.h': 'IRremote',
+  'IRremote.hpp': 'IRremote',
+  'Stepper.h': 'Stepper',
+  'AccelStepper.h': 'AccelStepper',
+  'HX711.h': 'HX711',
+  'SD.h': 'SD',
+}
+
+/** Adds the libraries the code includes to libraries.txt (merged with a given one). */
+function withLibraries(sketch: string, files: { name: string; content: string }[]) {
+  const libraries = new Set<string>()
+  for (const file of files.filter((f) => f.name === 'libraries.txt')) {
+    file.content.split('\n').forEach((lib) => lib.trim() && libraries.add(lib.trim()))
+  }
+  for (const code of [sketch, ...files.map((f) => f.content)]) {
+    for (const [, header] of (code || '').matchAll(/#include\s*[<"]([\w.]+)[>"]/g)) {
+      if (LIBRARIES[header]) libraries.add(LIBRARIES[header])
+    }
+  }
+
+  files = files.filter((f) => f.name !== 'libraries.txt')
+  if (libraries.size) {
+    files.push({ name: 'libraries.txt', content: [...libraries].join('\n') })
+  }
+  return files
+}
 
 const AVR8js = {
   build: async function (
@@ -47,6 +78,8 @@ const AVR8js = {
     if (!window.__AVR8jsCache) {
       window.__AVR8jsCache = {}
     }
+
+    files = withLibraries(sketch, files)
 
     let body = JSON.stringify({
       sketch,
