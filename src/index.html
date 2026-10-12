@@ -116,23 +116,83 @@
 
         // Output comes from other peers' sketches and the compiler, so it is
         // only ever added as text, never parsed as HTML.
+        // Serial output arrives byte by byte, so it is collected and written
+        // once per frame. Only the newest TERMINAL_LIMIT characters are kept,
+        // so a sketch that prints forever doesn't grow the page without limit.
+        const TERMINAL_LIMIT = 100000
+        let terminalLength = 0
+        let pending = ""
+        let flushScheduled = false
+
         function toTerminal(output, ok = true, clear = false) {
             const terminal = document.getElementById("stdout")
 
             if (clear) {
+                pending = ""
                 terminal.textContent = ""
+                terminalLength = 0
             }
 
             if (ok) {
-                terminal.append(output)
-            } else {
-                const span = document.createElement("span")
-                span.className = "error"
-                span.textContent = output
-                terminal.append(span)
+                pending += output
+                // a hidden tab gets no frames, so keep the buffer bounded too
+                if (pending.length > 2 * TERMINAL_LIMIT) {
+                    pending = pending.slice(-TERMINAL_LIMIT)
+                }
+                if (!flushScheduled) {
+                    flushScheduled = true
+                    requestAnimationFrame(flushTerminal)
+                }
+                return
             }
 
+            // keep the order: earlier output first, then the error
+            flushTerminal()
+            const span = document.createElement("span")
+            span.className = "error"
+            span.textContent = output
+            terminal.append(span)
+            terminalLength += output.length
+            trimTerminal(terminal)
             terminal.scrollTo(0, terminal.scrollHeight)
+        }
+
+        function flushTerminal() {
+            flushScheduled = false
+            if (!pending) {
+                return
+            }
+
+            const terminal = document.getElementById("stdout")
+            terminal.append(pending)
+            terminalLength += pending.length
+            pending = ""
+            trimTerminal(terminal)
+            terminal.scrollTo(0, terminal.scrollHeight)
+        }
+
+        // drop the oldest output beyond TERMINAL_LIMIT characters
+        function trimTerminal(terminal) {
+            let excess = terminalLength - TERMINAL_LIMIT
+
+            while (excess > 0 && terminal.firstChild) {
+                const node = terminal.firstChild
+                const length = node.textContent.length
+
+                if (length <= excess) {
+                    node.remove()
+                    terminalLength -= length
+                    excess -= length
+                } else {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        node.deleteData(0, excess)
+                    } else {
+                        node.textContent = node.textContent.slice(excess)
+                    }
+                    terminalLength -= excess
+                    excess = 0
+                }
+            }
         }
 
         Edrys.onReady(() => {
