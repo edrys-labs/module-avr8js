@@ -25690,17 +25690,54 @@ function $56a0b18e519895ee$var$stopClicked() {
     ;
     $56a0b18e519895ee$var$stop();
 }
+// An upload is Arduino source, or a project as module-editor's multi-file
+// mode sends it: JSON {"file": {"sketch.ino": "...", "util.h": "..."}}.
+// The sketch is sketch.ino or the first .ino file, the others go along as
+// files. Returns { sketch, files } or { error }.
+function $56a0b18e519895ee$var$parseUpload(body) {
+    let project;
+    try {
+        project = JSON.parse(body);
+    } catch (e) {
+        return {
+            sketch: body,
+            files: []
+        };
+    }
+    if (!project || typeof project.file !== "object" || Array.isArray(project.file)) return {
+        sketch: body,
+        files: []
+    };
+    const names = Object.keys(project.file);
+    const main = names.includes("sketch.ino") ? "sketch.ino" : names.find((name)=>name.endsWith(".ino"));
+    if (!main) return {
+        error: `the project has no .ino file (files: ${names.join(", ") || "none"})`
+    };
+    return {
+        sketch: String(project.file[main]),
+        files: names.filter((name)=>name !== main).map((name)=>({
+                name: name,
+                content: String(project.file[name])
+            }))
+    };
+}
 // Counts uploads, so a compile that a newer upload overtook is dropped
 // instead of starting a second simulation next to the newer one.
 let $56a0b18e519895ee$var$uploads = 0;
-async function $56a0b18e519895ee$var$compile(sketch) {
+async function $56a0b18e519895ee$var$compile(body) {
     const upload = ++$56a0b18e519895ee$var$uploads;
     if (window.runner) $56a0b18e519895ee$var$stop();
+    const { sketch: sketch, files: files, error: error } = $56a0b18e519895ee$var$parseUpload(body);
+    if (error) {
+        $56a0b18e519895ee$var$toTerminal(`\n${error}`, false);
+        $56a0b18e519895ee$var$setStatus("error", "off");
+        return;
+    }
     $56a0b18e519895ee$var$toTerminal("\nstart compiling ...");
     $56a0b18e519895ee$var$setStatus("compiling", "wait");
     let hex;
     try {
-        hex = await (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c).build(sketch);
+        hex = await (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c).build(sketch, files);
     } catch (e) {
         if (upload === $56a0b18e519895ee$var$uploads) {
             $56a0b18e519895ee$var$toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);

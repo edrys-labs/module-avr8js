@@ -74,15 +74,51 @@ function stopClicked() {
     stop()
 }
 
+// An upload is Arduino source, or a project as module-editor's multi-file
+// mode sends it: JSON {"file": {"sketch.ino": "...", "util.h": "..."}}.
+// The sketch is sketch.ino or the first .ino file, the others go along as
+// files. Returns { sketch, files } or { error }.
+function parseUpload(body) {
+    let project
+    try {
+        project = JSON.parse(body)
+    } catch (e) {
+        return { sketch: body, files: [] }
+    }
+    if (!project || typeof project.file !== "object" || Array.isArray(project.file)) {
+        return { sketch: body, files: [] }
+    }
+
+    const names = Object.keys(project.file)
+    const main = names.includes("sketch.ino") ? "sketch.ino" : names.find((name) => name.endsWith(".ino"))
+    if (!main) {
+        return { error: `the project has no .ino file (files: ${names.join(", ") || "none"})` }
+    }
+
+    return {
+        sketch: String(project.file[main]),
+        files: names
+            .filter((name) => name !== main)
+            .map((name) => ({ name, content: String(project.file[name]) }))
+    }
+}
+
 // Counts uploads, so a compile that a newer upload overtook is dropped
 // instead of starting a second simulation next to the newer one.
 let uploads = 0
 
-async function compile(sketch) {
+async function compile(body) {
     const upload = ++uploads
 
     if (window.runner) {
         stop()
+    }
+
+    const { sketch, files, error } = parseUpload(body)
+    if (error) {
+        toTerminal(`\n${error}`, false)
+        setStatus("error", "off")
+        return
     }
 
     toTerminal("\nstart compiling ...")
@@ -90,7 +126,7 @@ async function compile(sketch) {
 
     let hex
     try {
-        hex = await AVR8js.build(sketch)
+        hex = await AVR8js.build(sketch, files)
     } catch (e) {
         if (upload === uploads) {
             toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false)
