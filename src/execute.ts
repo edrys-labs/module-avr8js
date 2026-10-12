@@ -23,9 +23,7 @@ import { MicroTaskScheduler } from './task-scheduler'
 // ATmega328p params
 const FLASH = 0x8000
 
-export type PORT = 'A' | 'B' | 'C' | 'D' //| 'E' | 'F' | 'G' | 'H' | 'J' | 'K' | 'L';
-
-//const PORTS:Array<PORT> = ['B','C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L'];
+export type PORT = 'A' | 'B' | 'C' | 'D'
 
 export class AVRRunner {
   readonly program = new Uint16Array(FLASH)
@@ -36,7 +34,6 @@ export class AVRRunner {
   readonly port = new Map<PORT, AVRIOPort>()
   readonly usart: AVRUSART
   readonly adc: AVRADC
-  readonly speed = 16e6 // 16 MHZ
   readonly workUnitCycles = 500000
   readonly taskScheduler = new MicroTaskScheduler()
   public serialBuffer: Array<number>
@@ -60,7 +57,7 @@ export class AVRRunner {
 
     this.serialBuffer = []
 
-    this.usart = new AVRUSART(this.cpu, usart0Config, this.speed)
+    this.usart = new AVRUSART(this.cpu, usart0Config, this.FREQ)
     this.adc = new AVRADC(this.cpu, adcConfig)
 
     this.cpu.readHooks[usart0Config.UDR] = () => this.serialBuffer.shift() || 0

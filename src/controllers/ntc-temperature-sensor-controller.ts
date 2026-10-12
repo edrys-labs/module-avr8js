@@ -76,9 +76,6 @@ export class NTCTemperatureSensorController {
     // Voltage divider: V_out = VCC * R_NTC / (R_PULLUP + R_NTC)
     const voltage = VCC * R_NTC / (R_PULLUP + R_NTC)
     
-    // Convert to ADC value (0-1023 for 10-bit ADC)
-    const adcValue = (voltage / VCC) * 1023
-    
     // Set the ADC channel value
     if (runner.adc && runner.adc.channelValues) {
       runner.adc.channelValues[channel] = voltage

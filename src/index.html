@@ -35,9 +35,9 @@
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/water.min.css" />
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css" />
 
+    <!-- sets window.AVR8js -->
     <script defer type="module">
-        import { AVR8js } from "./index.ts"
-        window["AVR8js"] = AVR8js
+        import "./index.ts"
     </script>
 
     <script>
@@ -48,7 +48,6 @@
         }
 
         function send() {
-            console.log("send")
             const input = document.getElementById("stdin")
 
             if (window.runner) {
@@ -84,7 +83,6 @@
         }
 
         function stop() {
-            console.log("stop")
             // a stop during compiling drops the compile, so it ends that too
             const active = window.runner || state === "compiling"
 
@@ -314,18 +312,12 @@
                         return
                     }
 
-                    try {
-                        let data = JSON.parse(body)
-                    } catch (e) {
-                        // the sender keeps the upload in the room for peers who join or reload later
-                        if (config().synchronize === true && from === Edrys.username) {
-                            Edrys.getState(sketchKey(), "Value", body)
-                        }
-
-                        compile(body)
+                    // the sender keeps the upload in the room for peers who join or reload later
+                    if (config().synchronize === true && from === Edrys.username) {
+                        Edrys.getState(sketchKey(), "Value", body)
                     }
 
-
+                    compile(body)
                 } else if (
                     subject === STOP_SUBJECT &&
                     module === Edrys.module.url &&
@@ -336,7 +328,9 @@
                     uploads++
                     stop()
                 }
-            }, promiscuous = true);
+            },
+            // promiscuous: also receive messages sent by other modules (the editor)
+            true);
     </script>
 
     <style>

@@ -2,7 +2,6 @@ import '@wokwi/elements'
 import { AVRRunner, PORT } from './execute'
 import { formatTime } from './format-time'
 import { adcChannel, pinPort } from './pins'
-//import { WS2812Controller } from "./ws2812";
 import { CPUPerformance } from './cpu-performance'
 import { PinState } from 'avr8js'
 import { WS2812Controller } from './ws2812'
@@ -59,7 +58,6 @@ const AVR8js = {
       const resp = await fetch('https://hexi.wokwi.com/build', {
         method: 'POST',
         mode: 'cors',
-        cache: 'force-cache',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -77,39 +75,10 @@ const AVR8js = {
     }
   },
 
-  buildASM: async function asmToHex(source: string) {
-    if (!window.__AVR8jsCache) {
-      window.__AVR8jsCache = {}
-    }
-
-    let body = JSON.stringify({ files: [{ name: 'main.S', content: source }] })
-
-    if (window.__AVR8jsCache[body]) {
-      return window.__AVR8jsCache[body]
-    } else {
-      const resp = await fetch('https://hexi.wokwi.com/asm', {
-        method: 'POST',
-        mode: 'cors',
-        cache: 'no-cache',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: body,
-      })
-
-      const rslt = await resp.json()
-
-      window.__AVR8jsCache[body] = rslt
-
-      return rslt
-    }
-  },
-
-  execute: function (hex: string, log: any, id: string, MHZ: any) {
+  execute: function (hex: string, log: any, id: string) {
     const PORTS: Array<PORT> = ['B', 'C', 'D']
 
-    MHZ = MHZ || 16000000
-    const cpuNanos = () => Math.round((runner.cpu.cycles / MHZ) * 1000000000)
+    const cpuNanos = () => Math.round((runner.cpu.cycles / runner.FREQ) * 1000000000)
 
     const container = document.getElementById(id) || document
 
@@ -320,10 +289,10 @@ const AVR8js = {
 
     const timeSpan = container?.querySelector('#simulation-time')
 
-    const cpuPerf = new CPUPerformance(runner.cpu, MHZ)
+    const cpuPerf = new CPUPerformance(runner.cpu, runner.FREQ)
 
     runner.execute((cpu) => {
-      const time = formatTime(cpu.cycles / MHZ)
+      const time = formatTime(cpu.cycles / runner.FREQ)
       const speed = (cpuPerf.update() * 100).toFixed(0)
       if (timeSpan)
         timeSpan.textContent = `Simulation time: ${time} (${speed}%)`

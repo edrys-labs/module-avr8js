@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AVR8js Simulator</title>
 
-    <meta name="description" content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-editor' target='_blank'>module-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be sent with the subject `execute`. For more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>">
+    <meta name="description" content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-monaco-editor' target='_blank'>module-monaco-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be sent with the subject `execute`. For more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>">
     <meta name="show-in" content="*">
     <meta name="module-config" content="{
         'config': {
@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/water.min.css">
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css">
 
+    <!-- sets window.AVR8js -->
     <script defer="" type="module">/* eslint-disable @typescript-eslint/no-namespace */ /* eslint-disable @typescript-eslint/no-unused-vars */ 
 
 /**
@@ -22165,8 +22166,6 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
     constructor(hex){
         this.program = new Uint16Array($4edadc2b5de6ce07$var$FLASH);
         this.port = new Map();
-        this.speed = 16e6 // 16 MHZ
-        ;
         this.workUnitCycles = 500000;
         this.taskScheduler = new (0, $2c0d94366df39d6e$export$75888e1e77b5d9b8)();
         this.FREQ = 16000000;
@@ -22180,7 +22179,7 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
         this.port.set("D", new (0, $12dded1feaa73920$export$1ac453f8bba2925a)(this.cpu, (0, $12dded1feaa73920$export$95db00590d95ae9e)));
         this.twi = new (0, $bdade389ae8e5253$export$2ab34bf4f1a82352)(this.cpu, (0, $bdade389ae8e5253$export$df5a6af6000a55bc), this.FREQ);
         this.serialBuffer = [];
-        this.usart = new (0, $37345e8f0c999ca9$export$241bd50152a44a1a)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d), this.speed);
+        this.usart = new (0, $37345e8f0c999ca9$export$241bd50152a44a1a)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d), this.FREQ);
         this.adc = new (0, $8f33ec1094d0bb3b$export$95f4964dba5d79a7)(this.cpu, (0, $8f33ec1094d0bb3b$export$26c631cc1e869e46));
         this.cpu.readHooks[(0, $37345e8f0c999ca9$export$a1a91e39cb4174d).UDR] = ()=>this.serialBuffer.shift() || 0;
         this.taskScheduler.start();
@@ -23309,8 +23308,6 @@ class $9cac5ab4c27a7045$export$e0bad4831cb237ba {
         const R_NTC = this.calculateNTCResistance(temperature);
         // Voltage divider: V_out = VCC * R_NTC / (R_PULLUP + R_NTC)
         const voltage = VCC * R_NTC / (R_PULLUP + R_NTC);
-        // Convert to ADC value (0-1023 for 10-bit ADC)
-        const adcValue = voltage / VCC * 1023;
         // Set the ADC channel value
         if (runner.adc && runner.adc.channelValues) runner.adc.channelValues[channel] = voltage;
     }
@@ -23375,7 +23372,6 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
             const resp = await fetch("https://hexi.wokwi.com/build", {
                 method: "POST",
                 mode: "cors",
-                cache: "force-cache",
                 headers: {
                     "Content-Type": "application/json"
                 },
@@ -23388,40 +23384,13 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
             return rslt;
         }
     },
-    buildASM: async function asmToHex(source) {
-        if (!window.__AVR8jsCache) window.__AVR8jsCache = {};
-        let body = JSON.stringify({
-            files: [
-                {
-                    name: "main.S",
-                    content: source
-                }
-            ]
-        });
-        if (window.__AVR8jsCache[body]) return window.__AVR8jsCache[body];
-        else {
-            const resp = await fetch("https://hexi.wokwi.com/asm", {
-                method: "POST",
-                mode: "cors",
-                cache: "no-cache",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: body
-            });
-            const rslt = await resp.json();
-            window.__AVR8jsCache[body] = rslt;
-            return rslt;
-        }
-    },
-    execute: function(hex, log, id, MHZ) {
+    execute: function(hex, log, id) {
         const PORTS = [
             "B",
             "C",
             "D"
         ];
-        MHZ = MHZ || 16000000;
-        const cpuNanos = ()=>Math.round(runner.cpu.cycles / MHZ * 1000000000);
+        const cpuNanos = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000000000);
         const container = document.getElementById(id) || document;
         const LEDs = Array.from(container?.querySelectorAll("wokwi-led") || []);
         const SEG7 = Array.from(container?.querySelectorAll("wokwi-7segment") || []);
@@ -23544,9 +23513,9 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
             }
         }
         const timeSpan = container?.querySelector("#simulation-time");
-        const cpuPerf = new (0, $86959eedeb15e50e$export$c3b37e94fdf214dd)(runner.cpu, MHZ);
+        const cpuPerf = new (0, $86959eedeb15e50e$export$c3b37e94fdf214dd)(runner.cpu, runner.FREQ);
         runner.execute((cpu)=>{
-            const time = (0, $156f50b496497e4c$export$3203edd9e5edd663)(cpu.cycles / MHZ);
+            const time = (0, $156f50b496497e4c$export$3203edd9e5edd663)(cpu.cycles / runner.FREQ);
             const speed = (cpuPerf.update() * 100).toFixed(0);
             if (timeSpan) timeSpan.textContent = `Simulation time: ${time} (${speed}%)`;
             if (SSD1306 && ssd1306Controller) {
@@ -23615,7 +23584,6 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
 window["AVR8js"] = $382e02c9bbd5d50b$export$9f13ab6af83f071c;
 
 
-window["AVR8js"] = (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c);
 
 
 </script>
@@ -23626,7 +23594,6 @@ window["AVR8js"] = (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c);
     document.getElementById("stdin").disabled = bool;
 }
 function send() {
-    console.log("send");
     const input = document.getElementById("stdin");
     if (window.runner) {
         const value = input?.value || "";
@@ -23654,7 +23621,6 @@ function setStatus(name, kind) {
     badge.className = "badge " + kind;
 }
 function stop() {
-    console.log("stop");
     // a stop during compiling drops the compile, so it ends that too
     const active = window.runner || state === "compiling";
     if (window.runner) {
@@ -23814,19 +23780,16 @@ Edrys.onMessage(({ from, subject, body, module })=>{
     if (subject === executeSubject()) {
         // without synchronize, only run code this peer sent itself
         if (config().synchronize !== true && from !== Edrys.username) return;
-        try {
-            let data = JSON.parse(body);
-        } catch (e) {
-            // the sender keeps the upload in the room for peers who join or reload later
-            if (config().synchronize === true && from === Edrys.username) Edrys.getState(sketchKey(), "Value", body);
-            compile(body);
-        }
+        // the sender keeps the upload in the room for peers who join or reload later
+        if (config().synchronize === true && from === Edrys.username) Edrys.getState(sketchKey(), "Value", body);
+        compile(body);
     } else if (subject === STOP_SUBJECT && module === Edrys.module.url && body === executeSubject() && config().synchronize === true && from !== Edrys.username // the sender stopped already
     ) {
         uploads++;
         stop();
     }
-}, promiscuous = true);
+}, // promiscuous: also receive messages sent by other modules (the editor)
+true);
 
 </script>
 
