@@ -8,19 +8,19 @@
     <title>AVR8js Simulator</title>
 
     <meta name="description"
-        content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-editor' target='_blank'>module-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be send via topic `execute`, of for more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>" />
+        content="This is an Arduino simulator module for Edrys based on <a href='https://github.com/wokwi/avr8js' target='_blank'>AVR8js</a>. It must be connected with an additional editor module, such as <a href='https://github.com/edrys-labs/module-monaco-editor' target='_blank'>module-monaco-editor</a> or <a href='https://github.com/edrys-labs/module-blockly-duino-v2' target='_blank'>module-blockly-duino-v2</a>. Uploads must be sent with the subject `execute`. For more information and configuration options, see <br><br><a href='https://github.com/edrys-labs/module-avr8js' target='_blank'>edrys-labs/module-avr8js</a>" />
     <meta name="show-in" content="*" />
     <meta 
       name="module-config" 
       content="{
         'config': {
           'execute': {
-            'type': string,
-            'hint': 'Message that the module will listen to (default: execute)',
+            'type': 'text',
+            'hint': 'Message subject the simulator runs code from (default: execute)',
           },
           'modules': {
-            'type': text-area,
-            'hint': 'HTML code to be injected in the module',
+            'type': 'code-area',
+            'hint': 'The circuit as Wokwi parts in HTML, e.g. <wokwi-led pin=13></wokwi-led>',
           },
           'synchronize': {
             'type': 'boolean',
@@ -62,6 +62,17 @@
             input.value = ""
         }
 
+        // edrys-Lite passes "" for a module without config
+        function config() {
+            const config = Edrys.module?.config
+            return typeof config === "object" && config || {}
+        }
+
+        // the message subject the simulator runs code from
+        function executeSubject() {
+            return config().execute || "execute"
+        }
+
         let state = "loading"
 
         // kind is the badge colour: on, off or wait
@@ -96,10 +107,10 @@
         // The stop button: with synchronize, Stop is shared like Run, and the
         // stored sketch is removed so nobody restarts it on reload or join.
         function stopClicked() {
-            if (Edrys.module.config?.synchronize === true) {
+            if (config().synchronize === true) {
                 Edrys.clearState(sketchKey())
                 // the body names the subject, in case several simulators share a room
-                Edrys.sendMessage(STOP_SUBJECT, Edrys.module.config?.execute || "execute")
+                Edrys.sendMessage(STOP_SUBJECT, executeSubject())
             }
 
             uploads++ // drops a compile that is still running
@@ -238,9 +249,7 @@
         Edrys.onReady(() => {
             console.log("AVR8js simulator loaded ...")
 
-            let content = Edrys.module.config.modules || ""
-
-            content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + 'Config']?.modules || "")
+            const content = config().modules || ""
 
             if (content.trim()) {
                 document.getElementById("modules").innerHTML = content
@@ -252,7 +261,7 @@
             document.getElementById("stdout").querySelector(".hint")?.replaceChildren(
                 "Waiting for code from an editor module (subject ",
                 Object.assign(document.createElement("code"), {
-                    textContent: Edrys.module.config?.execute || "execute"
+                    textContent: executeSubject()
                 }),
                 ")…"
             )
@@ -268,7 +277,7 @@
             });
 
             // with synchronize, pick up the program the room is running (it starts at time 0)
-            if (Edrys.module.config?.synchronize === true) {
+            if (config().synchronize === true) {
                 const sketch = Edrys.getState(sketchKey(), "Value")
 
                 if (sketch) {
@@ -280,7 +289,7 @@
         // Room state is shared by all modules in the room, so the key names
         // the module and the subject it listens to.
         function sketchKey() {
-            return "avr8js:" + (Edrys.module.config?.execute || "execute")
+            return "avr8js:" + executeSubject()
         }
 
         // window.AVR8js comes from the bundled module script
@@ -299,9 +308,9 @@
                 body,
                 module
             }) => {
-                if (subject === (Edrys.module.config?.execute || "execute")) {
+                if (subject === executeSubject()) {
                     // without synchronize, only run code this peer sent itself
-                    if (Edrys.module.config?.synchronize !== true && from !== Edrys.username) {
+                    if (config().synchronize !== true && from !== Edrys.username) {
                         return
                     }
 
@@ -309,7 +318,7 @@
                         let data = JSON.parse(body)
                     } catch (e) {
                         // the sender keeps the upload in the room for peers who join or reload later
-                        if (Edrys.module.config?.synchronize === true && from === Edrys.username) {
+                        if (config().synchronize === true && from === Edrys.username) {
                             Edrys.getState(sketchKey(), "Value", body)
                         }
 
@@ -320,8 +329,8 @@
                 } else if (
                     subject === STOP_SUBJECT &&
                     module === Edrys.module.url &&
-                    body === (Edrys.module.config?.execute || "execute") &&
-                    Edrys.module.config?.synchronize === true &&
+                    body === executeSubject() &&
+                    config().synchronize === true &&
                     from !== Edrys.username // the sender stopped already
                 ) {
                     uploads++
