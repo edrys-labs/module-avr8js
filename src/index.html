@@ -72,6 +72,22 @@
             }
         }
 
+        // Message that stops the simulation on every peer of the room (with synchronize)
+        const STOP_SUBJECT = "avr8js-stop"
+
+        // The stop button: with synchronize, Stop is shared like Run, and the
+        // stored sketch is removed so nobody restarts it on reload or join.
+        function stopClicked() {
+            if (Edrys.module.config?.synchronize === true) {
+                Edrys.clearState(sketchKey())
+                // the body names the subject, in case several simulators share a room
+                Edrys.sendMessage(STOP_SUBJECT, Edrys.module.config?.execute || "execute")
+            }
+
+            uploads++ // drops a compile that is still running
+            stop()
+        }
+
         // Counts uploads, so a compile that a newer upload overtook is dropped
         // instead of starting a second simulation next to the newer one.
         let uploads = 0
@@ -263,6 +279,15 @@
                     }
 
 
+                } else if (
+                    subject === STOP_SUBJECT &&
+                    module === Edrys.module.url &&
+                    body === (Edrys.module.config?.execute || "execute") &&
+                    Edrys.module.config?.synchronize === true &&
+                    from !== Edrys.username // the sender stopped already
+                ) {
+                    uploads++
+                    stop()
                 }
             }, promiscuous = true);
     </script>
@@ -321,7 +346,7 @@
         </button>
         <input id="stdin" type="text" disabled></input>
 
-        <button id="stop" onclick="stop()" disabled>
+        <button id="stop" onclick="stopClicked()" disabled>
             stop
         </button>
     </div>

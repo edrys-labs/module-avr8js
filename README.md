@@ -28,7 +28,9 @@ editor's own sync setting, e.g. [module-monaco-editor](https://github.com/edrys-
 
 With `synchronize: true`, the last upload is also kept in the room state under `avr8js:<execute>` (e.g.
 `avr8js:execute`). Peers who join the room later, or whose module reloads, compile and start it
-automatically; their simulation starts from the beginning, not in step with the others.
+automatically; their simulation starts from the beginning, not in step with the others. Stop is shared
+the same way: pressing it stops the simulation on every peer in the room and removes the stored upload, so
+nobody restarts it on reload or join. Without `synchronize`, Stop only stops your own simulation.
 
 **YAML example:**
 
