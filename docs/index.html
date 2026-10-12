@@ -23975,7 +23975,9 @@ class $c63d65adc8105fd8$export$472062a354075cee {
         return container;
     }
     updateDisplay(value) {
-        this.display.textContent = `${value.toFixed(1)} ${this.config.unit}`;
+        // as many decimals as the step has: 0.01 g, 0.1 °C, 100 cm
+        const decimals = (String(this.config.step).split('.')[1] || '').length;
+        this.display.textContent = `${value.toFixed(decimals)} ${this.config.unit}`.trim();
     }
     setValue(value) {
         value = Math.max(this.config.min, Math.min(this.config.max, value));
@@ -24808,23 +24810,8 @@ const $d1559c8c5b32c2bb$var$photoresistor = (el, b)=>{
     };
 };
 const $d1559c8c5b32c2bb$var$ntc = (el, b)=>{
-    const p = b.analogPin(el);
-    if (!p) return;
-    // the temperature slider below the circuit sets the attribute
-    const slider = new (0, $c63d65adc8105fd8$export$472062a354075cee)({
-        min: -40,
-        max: 125,
-        value: b.num(el, 'temperature', 24),
-        step: 0.1,
-        unit: "\xb0C",
-        label: `Temperature ${el.getAttribute('pin')}`
-    }, {
-        onValueChange: (value)=>el.setAttribute('temperature', String(value))
-    });
-    slider.appendTo(document.getElementById('sensors') || document.body);
-    b.runner.onStop.push(()=>slider.remove());
     // 10k NTC in series with 10k, hotter gives a lower voltage
-    b.analog(p, ()=>{
+    b.analog(b.analogPin(el), ()=>{
         const kelvin = b.num(el, 'temperature', 24) + 273.15;
         const r = Math.exp(b.num(el, 'beta', 3950) * (1 / kelvin - 1 / 298.15));
         return 5 * r / (r + 1);
@@ -25219,6 +25206,300 @@ const $d1559c8c5b32c2bb$export$6e2410c1d27f06e7 = {
 };
 
 
+
+const $59fa2eebf337fb6c$var$SENSORS = {
+    'wokwi-ntc-temperature-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'temperature',
+                label: 'Temperature',
+                min: -40,
+                max: 125,
+                value: 24,
+                step: 0.1,
+                unit: "\xb0C"
+            }
+        ]
+    },
+    'wokwi-dht22': {
+        pin: 'pin',
+        controls: [
+            {
+                attr: 'temperature',
+                label: 'Temperature',
+                min: -40,
+                max: 80,
+                value: 24,
+                step: 0.1,
+                unit: "\xb0C"
+            },
+            {
+                attr: 'humidity',
+                label: 'Humidity',
+                min: 0,
+                max: 100,
+                value: 40,
+                step: 0.1,
+                unit: '%'
+            }
+        ]
+    },
+    'wokwi-hc-sr04': {
+        pin: 'pin-echo',
+        controls: [
+            {
+                attr: 'distance',
+                label: 'Distance',
+                min: 2,
+                max: 400,
+                value: 400,
+                step: 1,
+                unit: 'cm'
+            }
+        ]
+    },
+    'wokwi-photoresistor-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'lux',
+                label: 'Light',
+                min: 1,
+                max: 10000,
+                value: 500,
+                step: 1,
+                unit: 'lux'
+            }
+        ]
+    },
+    'wokwi-gas-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'ppm',
+                label: 'Gas',
+                min: 0,
+                max: 10000,
+                value: 400,
+                step: 1,
+                unit: 'ppm'
+            }
+        ]
+    },
+    'wokwi-flame-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'level',
+                label: 'Flame',
+                min: 0,
+                max: 1023,
+                value: 0,
+                step: 1
+            }
+        ]
+    },
+    'wokwi-small-sound-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'level',
+                label: 'Sound',
+                min: 0,
+                max: 1023,
+                value: 0,
+                step: 1
+            }
+        ]
+    },
+    'wokwi-big-sound-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'level',
+                label: 'Sound',
+                min: 0,
+                max: 1023,
+                value: 0,
+                step: 1
+            }
+        ]
+    },
+    'wokwi-heart-beat-sensor': {
+        pin: 'pin',
+        analog: true,
+        controls: [
+            {
+                attr: 'bpm',
+                label: 'Heart rate',
+                min: 40,
+                max: 180,
+                value: 70,
+                step: 1,
+                unit: 'bpm'
+            }
+        ]
+    },
+    'wokwi-hx711': {
+        pin: 'pin-dt',
+        controls: [
+            {
+                attr: 'load',
+                label: 'Load',
+                min: 0,
+                max: 50,
+                value: 0,
+                unit: 'kg'
+            }
+        ]
+    },
+    'wokwi-mpu6050': {
+        name: 'MPU6050',
+        controls: [
+            {
+                attr: 'accelX',
+                label: 'Acceleration X',
+                min: -2,
+                max: 2,
+                value: 0,
+                step: 0.01,
+                unit: 'g'
+            },
+            {
+                attr: 'accelY',
+                label: 'Acceleration Y',
+                min: -2,
+                max: 2,
+                value: 0,
+                step: 0.01,
+                unit: 'g'
+            },
+            {
+                attr: 'accelZ',
+                label: 'Acceleration Z',
+                min: -2,
+                max: 2,
+                value: 1,
+                step: 0.01,
+                unit: 'g'
+            },
+            {
+                attr: 'rotationX',
+                label: 'Rotation X',
+                min: -250,
+                max: 250,
+                value: 0,
+                step: 1,
+                unit: "\xb0/s"
+            },
+            {
+                attr: 'rotationY',
+                label: 'Rotation Y',
+                min: -250,
+                max: 250,
+                value: 0,
+                step: 1,
+                unit: "\xb0/s"
+            },
+            {
+                attr: 'rotationZ',
+                label: 'Rotation Z',
+                min: -250,
+                max: 250,
+                value: 0,
+                step: 1,
+                unit: "\xb0/s"
+            },
+            {
+                attr: 'temperature',
+                label: 'Temperature',
+                min: -40,
+                max: 85,
+                value: 24,
+                step: 0.1,
+                unit: "\xb0C"
+            }
+        ],
+        shown: [
+            'accelX',
+            'accelY',
+            'accelZ',
+            'rotationZ',
+            'temperature'
+        ]
+    }
+};
+const $59fa2eebf337fb6c$export$eb55f68bf87a1656 = Object.keys($59fa2eebf337fb6c$var$SENSORS);
+/** "D2" or "A0" for the pin in attribute attr */ function $59fa2eebf337fb6c$var$pinName(el, attr, analog, board) {
+    const p = analog ? board.analogPin(el, attr) : board.pin(el, attr);
+    if (!p) return '';
+    if (p.adc !== undefined) return 'A' + p.adc;
+    const port = p.port === board.runner.port.get('B') ? 8 : 0;
+    return 'D' + (port + p.bit);
+}
+/** parses controls='temperature, distance:2:200' */ function $59fa2eebf337fb6c$var$requested(el, sensor) {
+    const spec = el.getAttribute('controls');
+    if (spec === null) return sensor.controls.filter((c)=>!sensor.shown || sensor.shown.includes(c.attr));
+    const controls = [];
+    for (const entry of spec.split(',')){
+        const [attr, min, max] = entry.split(':').map((s)=>s.trim());
+        if (!attr || attr === 'none') continue;
+        const known = sensor.controls.find((c)=>c.attr.toLowerCase() === attr.toLowerCase());
+        const range = min !== undefined && max !== undefined ? {
+            min: Number(min),
+            max: Number(max)
+        } : null;
+        if (range && (isNaN(range.min) || isNaN(range.max) || range.min >= range.max)) {
+            console.warn(`AVR8js: invalid range in controls="${entry.trim()}"`);
+            continue;
+        }
+        if (known) controls.push({
+            ...known,
+            ...range
+        });
+        else if (range) controls.push({
+            attr: attr,
+            label: attr,
+            value: range.min,
+            ...range
+        });
+        else console.warn(`AVR8js: controls="${attr}" needs a range, e.g. ${attr}:0:100`);
+    }
+    return controls;
+}
+function $59fa2eebf337fb6c$export$9e4cfc19949e9df5(el, board) {
+    const sensor = $59fa2eebf337fb6c$var$SENSORS[el.tagName.toLowerCase()];
+    if (!sensor) return;
+    const where = sensor.pin ? $59fa2eebf337fb6c$var$pinName(el, sensor.pin, !!sensor.analog, board) : sensor.name || '';
+    const parent = document.getElementById('sensors') || document.body;
+    for (const control of $59fa2eebf337fb6c$var$requested(el, sensor)){
+        const span = control.max - control.min;
+        const value = Math.min(control.max, Math.max(control.min, board.num(el, control.attr, control.value)));
+        // the part reads the attribute, so it has to match what the slider shows
+        if (value !== board.num(el, control.attr, NaN)) el.setAttribute(control.attr, String(value));
+        const slider = new (0, $c63d65adc8105fd8$export$472062a354075cee)({
+            min: control.min,
+            max: control.max,
+            value: value,
+            step: control.step ?? (span > 100 ? 1 : 0.1),
+            unit: control.unit || '',
+            label: `${control.label} ${where}`.trim()
+        }, {
+            onValueChange: (v)=>el.setAttribute(control.attr, String(v))
+        });
+        slider.appendTo(parent);
+        board.runner.onStop.push(()=>slider.remove());
+    }
+}
+
+
 function $156f50b496497e4c$var$zeroPad(value, length) {
     let sval = value.toString();
     while(sval.length < length)sval = '0' + sval;
@@ -25328,6 +25609,8 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
             const frame = attach(el, board);
             if (frame) frames.push(frame);
         });
+        // sliders for the sensor values, in the order of the circuit
+        container.querySelectorAll((0, $59fa2eebf337fb6c$export$eb55f68bf87a1656).join(',')).forEach((el)=>(0, $59fa2eebf337fb6c$export$9e4cfc19949e9df5)(el, board));
         runner.usart.onByteTransmit = (value)=>{
             board.serialActivity = true;
             log(String.fromCharCode(value));

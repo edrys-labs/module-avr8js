@@ -54,7 +54,9 @@ export class Slider {
   }
 
   private updateDisplay(value: number): void {
-    this.display.textContent = `${value.toFixed(1)} ${this.config.unit}`;
+    // as many decimals as the step has: 0.01 g, 0.1 °C, 100 cm
+    const decimals = (String(this.config.step).split('.')[1] || '').length;
+    this.display.textContent = `${value.toFixed(decimals)} ${this.config.unit}`.trim();
   }
 
   public setValue(value: number): void {

@@ -2,6 +2,7 @@ import '@wokwi/elements'
 import { AVRRunner } from './execute'
 import { Board } from './board'
 import { parts } from './parts'
+import { SENSOR_TAGS, attachControls } from './controls'
 import { formatTime } from './format-time'
 import { CPUPerformance } from './cpu-performance'
 
@@ -92,6 +93,11 @@ const AVR8js = {
         if (frame) frames.push(frame)
       })
     }
+
+    // sliders for the sensor values, in the order of the circuit
+    container
+      .querySelectorAll(SENSOR_TAGS.join(','))
+      .forEach((el) => attachControls(el, board))
 
     runner.usart.onByteTransmit = (value) => {
       board.serialActivity = true

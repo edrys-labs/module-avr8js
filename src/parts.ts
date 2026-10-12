@@ -9,7 +9,6 @@ import {
   MPU6050Controller,
   MPU6050_ADDR,
   SDCardController,
-  Slider,
   SSD1306Controller,
   SSD1306_ADDR_32,
   SSD1306_ADDR_OTHER,
@@ -382,26 +381,8 @@ const photoresistor: Part = (el, b) => {
 }
 
 const ntc: Part = (el, b) => {
-  const p = b.analogPin(el)
-  if (!p) return
-
-  // the temperature slider below the circuit sets the attribute
-  const slider = new Slider(
-    {
-      min: -40,
-      max: 125,
-      value: b.num(el, 'temperature', 24),
-      step: 0.1,
-      unit: '°C',
-      label: `Temperature ${el.getAttribute('pin')}`,
-    },
-    { onValueChange: (value) => el.setAttribute('temperature', String(value)) }
-  )
-  slider.appendTo(document.getElementById('sensors') || document.body)
-  b.runner.onStop.push(() => slider.remove())
-
   // 10k NTC in series with 10k, hotter gives a lower voltage
-  b.analog(p, () => {
+  b.analog(b.analogPin(el), () => {
     const kelvin = b.num(el, 'temperature', 24) + 273.15
     const r = Math.exp(b.num(el, 'beta', 3950) * (1 / kelvin - 1 / 298.15))
     return (5 * r) / (r + 1)

@@ -76,8 +76,8 @@ synchronize: false
 
 - **Header:** the status badge shows `idle`, `compiling`, `running`, `stopped` or `error`. **Stop** (red while
   a program runs) ends the simulation.
-- **Circuit:** the parts from `modules`. Without them, the module says where to configure the circuit. An NTC
-  sensor adds a temperature slider below the circuit while a program runs.
+- **Circuit:** the parts from `modules`. Without them, the module says where to configure the circuit. While a program
+  runs, sensors get sliders for their values below the circuit (see [Sensor sliders](#sensor-sliders)).
 - **Terminal:** before any code arrives, it says which subject it waits for. Then it shows the compiler output,
   compile errors and the sketch's `Serial` output. Only the newest 100,000 characters are kept.
 - **Serial input:** Enter or **Send** sends the line to the sketch, ending it with `\n` as the Arduino Serial
@@ -96,7 +96,8 @@ Arduino Uno (ATmega328P) through their attributes.
   inputs also accept `0`–`5` for `A0`–`A5`, as older configs use them.
 - Parts with several lines take a list, like `pin='2,3,4'`, or one attribute per line, like
   `pin-trig='3' pin-echo='2'`.
-- Sensor values are attributes too, such as `temperature='24'`, and they are read while the simulation runs.
+- Sensor values are attributes too, such as `temperature='24'`. They are read while the simulation runs, and
+  [sliders](#sensor-sliders) change them.
 - Buttons and switches behave like real ones. With `INPUT_PULLUP` they connect the pin to GND (pressed reads
   `LOW`). With `INPUT` they work as if a pull-down resistor were wired in (pressed reads `HIGH`). Unconnected
   `INPUT_PULLUP` pins read `HIGH`, and unconnected analog pins return noise.
@@ -118,7 +119,7 @@ Arduino Uno (ATmega328P) through their attributes.
 | `wokwi-potentiometer`, `wokwi-slide-potentiometer` | `pin` (analog) |
 | `wokwi-analog-joystick` | `pin-vert`, `pin-horz` (analog), `pin-sel` |
 | `wokwi-photoresistor-sensor` | `pin` (AO), `pin-do`, `lux` (500), `threshold` (2.5 V), `rl10` (50), `gamma` (0.7) |
-| `wokwi-ntc-temperature-sensor` | `pin`, `temperature` (24 °C), `beta` (3950); adds a temperature slider |
+| `wokwi-ntc-temperature-sensor` | `pin`, `temperature` (24 °C), `beta` (3950) |
 | `wokwi-gas-sensor` | `pin` (AO), `pin-do`, `ppm` (400), `threshold` (4.4 V) |
 | `wokwi-flame-sensor`, `wokwi-small-sound-sensor`, `wokwi-big-sound-sensor` | `pin` (AO), `pin-do`, `level` (0–1023), `threshold` (512) |
 | `wokwi-heart-beat-sensor` | `pin`, `bpm` (70) |
@@ -163,7 +164,34 @@ void loop() {
 **Buzzer:** it plays the frequency on its pin, so `tone()` works. A pin held `HIGH` with `digitalWrite` plays the
 `frequency` attribute, like an active buzzer. The browser needs a click in the page before it plays audio.
 
-**NTC sensor:** a slider below the circuit sets its `temperature` (−40 °C to +125 °C) while a program runs.
+### Sensor sliders
+
+While a program runs, each sensor gets sliders for its values below the circuit. A slider is named after the
+value and the sensor's pin, e.g. "Temperature D2". It starts at the value of the attribute (or the default) and
+changes the attribute. Sliders are local: moving one changes only your own simulation, like pressing a button.
+
+| Sensor | Sliders |
+|---|---|
+| `wokwi-ntc-temperature-sensor` | `temperature` −40–125 °C |
+| `wokwi-dht22` | `temperature` −40–80 °C, `humidity` 0–100 % |
+| `wokwi-hc-sr04` | `distance` 2–400 cm |
+| `wokwi-photoresistor-sensor` | `lux` 1–10000 |
+| `wokwi-gas-sensor` | `ppm` 0–10000 |
+| `wokwi-flame-sensor`, `wokwi-small-sound-sensor`, `wokwi-big-sound-sensor` | `level` 0–1023 |
+| `wokwi-heart-beat-sensor` | `bpm` 40–180 |
+| `wokwi-hx711` | `load` 0–50 kg |
+| `wokwi-mpu6050` | `accelX`, `accelY`, `accelZ` −2–2 g, `rotationZ` −250–250 °/s, `temperature` −40–85 °C (`rotationX`, `rotationY` on request) |
+
+The `controls` attribute chooses the sliders of a part: a comma-separated list of attributes, each with an
+optional `:min:max` range. Attributes that are not in the table need a range. `controls='none'` hides all sliders.
+
+```html
+<wokwi-dht22 pin='2' controls='temperature'></wokwi-dht22>                 <!-- only the temperature -->
+<wokwi-hc-sr04 pin-trig='3' pin-echo='4' controls='distance:2:200'></wokwi-hc-sr04>
+<wokwi-hx711 pin-dt='A1' pin-sck='A0' type='5kg' controls='load:0:5'></wokwi-hx711>
+<wokwi-mpu6050 controls='rotationX, rotationY, rotationZ'></wokwi-mpu6050>
+<wokwi-photoresistor-sensor pin='A0' controls='none'></wokwi-photoresistor-sensor>
+```
 
 ---
 
