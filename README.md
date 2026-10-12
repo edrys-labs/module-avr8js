@@ -85,101 +85,74 @@ synchronize: false
 
 ---
 
-## Available Circuit Elements
+## Circuit Elements
 
-All elements are standard Wokwi web components placed in the `modules` HTML string.
+The circuit is HTML in `modules`: [Wokwi elements](https://github.com/wokwi/wokwi-elements), wired to the simulated
+Arduino Uno (ATmega328P) through their attributes.
 
-### Utility
+**Wiring**
 
-| Element | Description |
+- `pin='13'` is the main pin of a part. Digital pins are `0`–`13`, analog pins `A0`–`A5` (or `14`–`19`). Analog
+  inputs also accept `0`–`5` for `A0`–`A5`, as older configs use them.
+- Parts with several lines take a list, like `pin='2,3,4'`, or one attribute per line, like
+  `pin-trig='3' pin-echo='2'`.
+- Sensor values are attributes too, such as `temperature='24'`, and they are read while the simulation runs.
+- Buttons and switches behave like real ones. With `INPUT_PULLUP` they connect the pin to GND (pressed reads
+  `LOW`). With `INPUT` they work as if a pull-down resistor were wired in (pressed reads `HIGH`). Unconnected
+  `INPUT_PULLUP` pins read `HIGH`, and unconnected analog pins return noise.
+- I2C parts use their default address. `address='0x69'` changes it.
+- SPI parts use the hardware SPI pins 11 (MOSI), 12 (MISO), 13 (SCK) and their own chip select `pin-cs`.
+
+| Part | Attributes |
 |---|---|
-| `<span id='simulation-time'></span>` | Displays elapsed simulation time and CPU performance (e.g. `Simulation time: 00:05.123 (98%)`) |
+| `wokwi-led` | `pin` (PWM sets the brightness), `color`, `label` |
+| `wokwi-rgb-led` | `pin-r`, `pin-g`, `pin-b`, `common='anode'` (default, `LOW` is on) or `'cathode'` |
+| `wokwi-led-bar-graph` | `pin` list with up to 10 pins |
+| `wokwi-7segment` | `pin` list A, B, C, D, E, F, G, DP, `pin-digits` list for multiplexed displays, `common='anode'` (default) or `'cathode'` |
+| `wokwi-buzzer` | `pin`, `volume` (0–1), `frequency` (Hz while the pin is held `HIGH`, default 1000) |
+| `wokwi-pushbutton`, `wokwi-pushbutton-6mm` | `pin` |
+| `wokwi-slide-switch` | `pin` (left is `LOW`, right is `HIGH`) |
+| `wokwi-dip-switch-8` | `pin` list with 8 pins |
+| `wokwi-tilt-switch` | `pin`, click to tilt |
+| `wokwi-pir-motion-sensor` | `pin`, `delayTime` (5 s), `inhibitTime` (1.2 s), `retrigger`, click to move |
+| `wokwi-potentiometer`, `wokwi-slide-potentiometer` | `pin` (analog) |
+| `wokwi-analog-joystick` | `pin-vert`, `pin-horz` (analog), `pin-sel` |
+| `wokwi-photoresistor-sensor` | `pin` (AO), `pin-do`, `lux` (500), `threshold` (2.5 V), `rl10` (50), `gamma` (0.7) |
+| `wokwi-ntc-temperature-sensor` | `pin`, `temperature` (24 °C), `beta` (3950); adds a temperature slider |
+| `wokwi-gas-sensor` | `pin` (AO), `pin-do`, `ppm` (400), `threshold` (4.4 V) |
+| `wokwi-flame-sensor`, `wokwi-small-sound-sensor`, `wokwi-big-sound-sensor` | `pin` (AO), `pin-do`, `level` (0–1023), `threshold` (512) |
+| `wokwi-heart-beat-sensor` | `pin`, `bpm` (70) |
+| `wokwi-servo` | `pin` (Servo library pulses: 544 µs = 0°, 2400 µs = 180°) |
+| `wokwi-stepper-motor` | `pin` list A-, A+, B+, B- |
+| `wokwi-biaxial-stepper` | `pin-outer`, `pin-inner` lists A-, A+, B+, B- |
+| `wokwi-neopixel`, `wokwi-led-ring`, `wokwi-neopixel-matrix` | `pin`; `pixels` (ring), `cols` and `rows` (matrix) |
+| `wokwi-dht22` | `pin`, `temperature` (24 °C), `humidity` (40 %) |
+| `wokwi-hc-sr04` | `pin-trig`, `pin-echo`, `distance` (400 cm) |
+| `wokwi-membrane-keypad` | `pin-rows`, `pin-cols` |
+| `wokwi-ky-040` | `pin-clk`, `pin-dt`, `pin-sw` |
+| `wokwi-rotary-dialer` | `pin-dial`, `pin-pulse` |
+| `wokwi-ir-receiver`, `wokwi-ir-remote` | `pin` (receiver); the remote sends NEC codes to all receivers |
+| `wokwi-hx711` | `pin-dt`, `pin-sck`, `load` (kg, 420 per kg) |
+| `wokwi-lcd1602`, `wokwi-lcd2004` | I2C `0x27` (`LiquidCrystal_I2C`) |
+| `wokwi-ssd1306` | I2C `0x3C` and `0x3D` (`Adafruit_SSD1306`) |
+| `wokwi-ds1307` | I2C `0x68` (`RTClib`), `initTime` (`now`, `0` or an ISO date) |
+| `wokwi-mpu6050` | I2C `0x68`, `accelX`, `accelY`, `accelZ` (g), `rotationX`, `rotationY`, `rotationZ` (°/s), `temperature` |
+| `wokwi-ili9341` | SPI, `pin-cs` (10), `pin-dc` (9) (`Adafruit_ILI9341`) |
+| `wokwi-microsd-card` | SPI, `pin-cs` (10), an empty 8 MB FAT16 card (`SD`) |
+| `wokwi-arduino-uno`, `wokwi-arduino-nano` | shows the LED on pin 13, the TX LED and the power LED |
+| `<span id='simulation-time'></span>` | shows the simulation time and speed, e.g. `Simulation time: 00:05.123 (100%)` |
 
-### Digital Output
+Other Wokwi elements are shown but not simulated, e.g. `wokwi-resistor` or boards with another microcontroller.
+The simulation runs in real time, and EEPROM (`EEPROM.h`) works within one run.
 
-#### `wokwi-led` — LED
-
-```html
-<wokwi-led color='red' pin='13' label='LED'></wokwi-led>
-```
-
-| Attribute | Description |
-|---|---|
-| `color` | Any CSS color or name: `red`, `green`, `blue`, `yellow`, `orange`, etc. |
-| `pin` | Arduino digital pin number (0–13) |
-| `label` | Optional text label displayed on the component |
-
-### Digital Input
-
-#### `wokwi-pushbutton` — Push Button
-
-```html
-<wokwi-pushbutton pin='2'></wokwi-pushbutton>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | Arduino digital pin the button is connected to |
-
-The button behaves like a real one. With `pinMode(pin, INPUT_PULLUP)` it connects the pin to GND, so pressed reads
-`LOW` and released reads `HIGH`. With `INPUT` it works as if a pull-down resistor were wired in, so pressed reads `HIGH`
-and released reads `LOW`.
-
-### Analog Input
-
-#### `wokwi-potentiometer` — Potentiometer
-
-```html
-<wokwi-potentiometer pin='A0'></wokwi-potentiometer>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | Analog pin (`A0`–`A5`) — returns ADC values 0–1023 |
-
-#### `wokwi-ntc-temperature-sensor` — NTC Temperature Sensor
-
-```html
-<wokwi-ntc-temperature-sensor pin='A2'></wokwi-ntc-temperature-sensor>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | Analog pin (`A0`–`A5`) |
-
-Interactive slider lets you set temperature from −40 °C to +125 °C. The module simulates the corresponding NTC thermistor resistance and updates the ADC value accordingly.
-
-### Displays
-
-#### `wokwi-lcd1602` — 16×2 Character LCD (I2C)
+**7-segment display:** the default is common anode, as on wokwi.com, so a segment is on while its pin is `LOW`.
+Add `common='cathode'` for segments that are on while `HIGH`, which was the default before. A single pin selects a
+whole port: `pin='0'` maps bits 0–7 of PORTD to A–G and DP, and `pin='8'` does the same with PORTB. On PORTD,
+pins 0 and 1 are also the serial pins, so don't use `Serial` in the same sketch.
 
 ```html
-<wokwi-lcd1602></wokwi-lcd1602>
+<wokwi-7segment pin='0' common='cathode'></wokwi-7segment>
 ```
-
-I2C address: `0x27`. Use the `LiquidCrystal_I2C` library in your sketch.
-
-#### `wokwi-ssd1306` — 128×64 OLED Display (I2C)
-
-```html
-<wokwi-ssd1306></wokwi-ssd1306>
-```
-
-I2C address: `0x3D`. Use the `Adafruit_SSD1306` library in your sketch.
-
-#### `wokwi-7segment` — 7-Segment Display
-
-```html
-<wokwi-7segment pin='0'></wokwi-7segment>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | Selects the whole port: `0`–`7` → PORTD, `8`–`13` → PORTB |
-
-Port bits 0–7 drive segments A, B, C, D, E, F, G and DP. On PORTD, pins 0 and 1 are also the serial
-pins, so don't use `Serial` in the same sketch.
-
 ```cpp
 void setup() { DDRD = 0xFF; }
 void loop() {
@@ -187,70 +160,10 @@ void loop() {
 }
 ```
 
-### PWM / Actuators
+**Buzzer:** it plays the frequency on its pin, so `tone()` works. A pin held `HIGH` with `digitalWrite` plays the
+`frequency` attribute, like an active buzzer. The browser needs a click in the page before it plays audio.
 
-#### `wokwi-servo` — Servo Motor
-
-```html
-<wokwi-servo pin='9'></wokwi-servo>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | PWM-capable pin. Pulse width 1000–2000 µs maps to 0–180°. Default: 90°. |
-
-Use the `Servo` library in your sketch.
-
-#### `wokwi-buzzer` — Buzzer
-
-```html
-<wokwi-buzzer pin='8' frequency='1000'></wokwi-buzzer>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | Digital pin driven HIGH to activate audio |
-| `frequency` | Tone frequency in Hz (default: `1000`) |
-
-Audio is generated via the Web Audio API. A user interaction (click) is required to unlock audio in the browser.
-
-### Addressable LEDs
-
-#### `wokwi-neopixel-matrix` — NeoPixel RGB Matrix
-
-```html
-<wokwi-neopixel-matrix cols='8' rows='8' pin='5'></wokwi-neopixel-matrix>
-```
-
-| Attribute | Description |
-|---|---|
-| `pin` | Data pin (WS2812B protocol) |
-| `cols` | Number of columns |
-| `rows` | Number of rows |
-
-Use the `Adafruit_NeoPixel` library in your sketch.
-
-### Real-Time Clock
-
-#### `wokwi-ds1307` — DS1307 RTC (I2C)
-
-```html
-<wokwi-ds1307></wokwi-ds1307>
-```
-
-I2C address: `0x68`. Initializes to the current system time. Use the `RTClib` library (`RTC_DS1307`) in your sketch.
-
----
-
-## Pin Mapping
-
-| Arduino Pin | AVR Port |
-|---|---|
-| D0–D7 | PORTD (PD0–PD7) |
-| D8–D13 | PORTB (PB0–PB5) |
-| A0–A5 | PORTC (PC0–PC5) |
-
-Analog parts accept `A0`–`A5` or the Arduino numbers `14`–`19`.
+**NTC sensor:** a slider below the circuit sets its `temperature` (−40 °C to +125 °C) while a program runs.
 
 ---
 
@@ -379,17 +292,69 @@ modules: |
 
 ```yaml
 modules: |
-  <wokwi-buzzer pin='8' frequency='440'></wokwi-buzzer>
+  <wokwi-buzzer pin='8'></wokwi-buzzer>
   <wokwi-pushbutton pin='2'></wokwi-pushbutton>
   <span id='simulation-time'></span>
 ```
 
-Arduino sketch:
+Arduino sketch (the button pulls the pin to GND):
 ```cpp
-void setup() { pinMode(8, OUTPUT); pinMode(2, INPUT); }
+void setup() { pinMode(8, OUTPUT); pinMode(2, INPUT_PULLUP); }
 void loop() {
-  if (digitalRead(2) == HIGH) tone(8, 440);
+  if (digitalRead(2) == LOW) tone(8, 440);
   else noTone(8);
+}
+```
+
+### RGB LED
+
+```yaml
+modules: |
+  <wokwi-rgb-led pin-r='9' pin-g='10' pin-b='11'></wokwi-rgb-led>
+```
+
+Arduino sketch (common anode: `0` is full brightness, `255` is off):
+```cpp
+void setColor(int r, int g, int b) {
+  analogWrite(9, 255 - r);
+  analogWrite(10, 255 - g);
+  analogWrite(11, 255 - b);
+}
+void setup() {}
+void loop() {
+  setColor(255, 0, 0);   delay(500);
+  setColor(0, 255, 0);   delay(500);
+  setColor(0, 0, 255);   delay(500);
+}
+```
+
+### DHT22 + Distance Sensor
+
+```yaml
+modules: |
+  <wokwi-dht22 pin='2' temperature='31.5' humidity='55'></wokwi-dht22>
+  <wokwi-hc-sr04 pin-trig='3' pin-echo='4' distance='100'></wokwi-hc-sr04>
+```
+
+Arduino sketch (requires `DHT`):
+```cpp
+#include <DHT.h>
+DHT dht(2, DHT22);
+void setup() {
+  Serial.begin(9600);
+  dht.begin();
+  pinMode(3, OUTPUT);
+  pinMode(4, INPUT);
+}
+void loop() {
+  digitalWrite(3, HIGH); delayMicroseconds(10); digitalWrite(3, LOW);
+  Serial.print(pulseIn(4, HIGH) / 58);
+  Serial.print(" cm, ");
+  Serial.print(dht.readTemperature());
+  Serial.print(" C, ");
+  Serial.print(dht.readHumidity());
+  Serial.println(" %");
+  delay(2000);
 }
 ```
 
@@ -435,9 +400,9 @@ void loop() {
 1. An editor module sends the Arduino source as a message with the `execute` subject (configurable).
 2. This module sends it to `hexi.wokwi.com`, which compiles it and returns the hex (or the compile errors).
 3. The hex is loaded into the AVR8js emulator, which runs an ATmega328P at 16 MHz.
-4. Wokwi components react to pin changes in real time (GPIO, PWM, I2C).
+4. Wokwi components react to pin changes in real time (GPIO, PWM, I2C, SPI).
 5. Serial output (`Serial.print`) is shown in the terminal.
-6. Interactive components (button, potentiometer, temperature slider) feed input back into the simulation.
+6. Interactive components (buttons, switches, knobs, keypad, the temperature slider) feed input back into the simulation.
 
 ---
 

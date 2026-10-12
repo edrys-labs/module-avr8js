@@ -23013,9 +23013,17 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
     constructor(hex){
         this.program = new Uint16Array($4edadc2b5de6ce07$var$FLASH);
         this.port = new Map();
+        this.FREQ = 16e6 // 16 MHZ
+        ;
         this.workUnitCycles = 500000;
         this.taskScheduler = new (0, $2c0d94366df39d6e$export$75888e1e77b5d9b8)();
-        this.FREQ = 16000000;
+        this.onStop = [];
+        this.serialBuffer = [];
+        /** slow motion factor, 1 is real time */ this.speed = 1;
+        this.stopped = false;
+        this.lastSpeed = 1;
+        this.startTime = performance.now();
+        this.startCycles = 0;
         (0, $4e34eb2589abb66e$export$6907aa30e09916b)(hex, new Uint8Array(this.program.buffer));
         this.cpu = new (0, $6827ba3ac14e49f1$export$5ebf4cde340e6028)(this.program);
         this.timer0 = new (0, $ad2a78a750a59eb7$export$1f1181cc33e90880)(this.cpu, (0, $ad2a78a750a59eb7$export$317a7a18d5dc735a));
@@ -23025,107 +23033,63 @@ class $4edadc2b5de6ce07$export$31e2b2d64952a5f1 {
         this.port.set('C', new (0, $12dded1feaa73920$export$1ac453f8bba2925a)(this.cpu, (0, $12dded1feaa73920$export$12fe028bd33e21d9)));
         this.port.set('D', new (0, $12dded1feaa73920$export$1ac453f8bba2925a)(this.cpu, (0, $12dded1feaa73920$export$95db00590d95ae9e)));
         this.twi = new (0, $bdade389ae8e5253$export$2ab34bf4f1a82352)(this.cpu, (0, $bdade389ae8e5253$export$df5a6af6000a55bc), this.FREQ);
-        this.serialBuffer = [];
-        this.usart = new (0, $37345e8f0c999ca9$export$241bd50152a44a1a)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d), this.FREQ);
         this.adc = new (0, $8f33ec1094d0bb3b$export$95f4964dba5d79a7)(this.cpu, (0, $8f33ec1094d0bb3b$export$26c631cc1e869e46));
-        this.cpu.readHooks[(0, $37345e8f0c999ca9$export$a1a91e39cb4174d).UDR] = ()=>this.serialBuffer.shift() || 0;
+        this.spi = new (0, $9355bfa91873ab3c$export$e770de89dc62fb15)(this.cpu, (0, $9355bfa91873ab3c$export$5c5078a6738618e), this.FREQ);
+        this.eeprom = new (0, $b1ad15e0927a8680$export$e4d9cdc42cd381f1)(this.cpu, new (0, $b1ad15e0927a8680$export$a3cc193e8cb9a57d)(1024));
+        this.usart = new (0, $37345e8f0c999ca9$export$241bd50152a44a1a)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d), this.FREQ);
+        this.usart.onRxComplete = ()=>this.feedSerial();
         this.taskScheduler.start();
     }
     execute(callback) {
-        const cyclesToRun = this.cpu.cycles + this.workUnitCycles;
-        while(this.cpu.cycles < cyclesToRun){
-            (0, $471f415b9dbbafff$export$ee9e7802dde8a69a)(this.cpu);
-            this.cpu.tick();
+        if (this.stopped) return;
+        // run in real time: wait if the simulation is ahead of the wall clock,
+        // start over if it fell behind (slow computer, background tab)
+        const now = performance.now();
+        const speed = this.speed > 0 ? this.speed : 1;
+        if (speed !== this.lastSpeed) {
+            this.lastSpeed = speed;
+            this.startTime = now;
+            this.startCycles = this.cpu.cycles;
+        }
+        const ahead = (this.cpu.cycles - this.startCycles) / this.FREQ / speed * 1000 - (now - this.startTime);
+        if (ahead > 1) {
+            setTimeout(()=>this.execute(callback), ahead);
+            return;
+        }
+        if (ahead < -100) {
+            this.startTime = now;
+            this.startCycles = this.cpu.cycles;
+        }
+        // in slow motion, smaller slices keep the frames coming (about 30 ms each)
+        const slice = Math.min(this.workUnitCycles, Math.max(256, Math.round(this.FREQ * speed * 0.03)));
+        const cyclesToRun = this.cpu.cycles + slice;
+        const { cpu: cpu, probe: probe } = this;
+        if (probe) while(cpu.cycles < cyclesToRun){
+            probe();
+            (0, $471f415b9dbbafff$export$ee9e7802dde8a69a)(cpu);
+            cpu.tick();
+        }
+        else while(cpu.cycles < cyclesToRun){
+            (0, $471f415b9dbbafff$export$ee9e7802dde8a69a)(cpu);
+            cpu.tick();
         }
         callback(this.cpu);
+        this.feedSerial() // retry, in case the receiver was not enabled yet
+        ;
         this.taskScheduler.postTask(()=>this.execute(callback));
-        const ucsra = this.cpu.data[(0, $37345e8f0c999ca9$export$a1a91e39cb4174d).UCSRA];
-        if (this.cpu.interruptsEnabled && ucsra & 0x20 && this.serialBuffer.length > 0) (0, $0dab3ea1aeb1c71c$export$d1f7a78170099a25)(this.cpu, (0, $37345e8f0c999ca9$export$a1a91e39cb4174d).rxCompleteInterrupt);
     }
     stop() {
+        this.stopped = true;
         this.taskScheduler.stop();
+        this.onStop.splice(0).forEach((fn)=>fn());
     }
     serial(input) {
         for(var i = 0; i < input.length; i++)this.serialBuffer.push(input.charCodeAt(i));
+        this.feedSerial();
     }
-}
-
-
-function $156f50b496497e4c$var$zeroPad(value, length) {
-    let sval = value.toString();
-    while(sval.length < length)sval = '0' + sval;
-    return sval;
-}
-function $156f50b496497e4c$export$3203edd9e5edd663(seconds) {
-    const ms = Math.floor(seconds * 1000) % 1000;
-    const secs = Math.floor(seconds % 60);
-    const mins = Math.floor(seconds / 60);
-    return `${$156f50b496497e4c$var$zeroPad(mins, 2)}:${$156f50b496497e4c$var$zeroPad(secs, 2)}.${$156f50b496497e4c$var$zeroPad(ms, 3)}`;
-}
-
-
-function $d6081ff883bc8055$export$250d30c71cd6f6fd(e) {
-    const attr = (e.getAttribute('pin') || '').trim().toUpperCase();
-    const n = /^A[0-5]$/.test(attr) ? 14 + Number(attr[1]) : parseInt(attr, 10);
-    if (Number.isNaN(n)) return [
-        null,
-        null,
-        null
-    ];
-    if (n < 8) return [
-        n,
-        'D',
-        n
-    ];
-    if (n < 14) return [
-        n - 8,
-        'B',
-        n
-    ];
-    if (n < 20) return [
-        n - 14,
-        'C',
-        n
-    ];
-    return [
-        null,
-        null,
-        null
-    ];
-}
-function $d6081ff883bc8055$export$78e45a2b028eb519(e) {
-    const [, , n] = $d6081ff883bc8055$export$250d30c71cd6f6fd(e);
-    return n !== null && n >= 14 ? n - 14 : null;
-}
-
-
-class $86959eedeb15e50e$export$c3b37e94fdf214dd {
-    constructor(cpu, MHZ){
-        this.cpu = cpu;
-        this.MHZ = MHZ;
-        this.prevTime = 0;
-        this.prevCycles = 0;
-        this.samples = new Float32Array(64);
-        this.sampleIndex = 0;
-    }
-    reset() {
-        this.prevTime = 0;
-        this.prevCycles = 0;
-        this.sampleIndex = 0;
-    }
-    update() {
-        if (this.prevTime) {
-            const delta = performance.now() - this.prevTime;
-            const deltaCycles = this.cpu.cycles - this.prevCycles;
-            const deltaCpuMillis = 1000 * (deltaCycles / this.MHZ);
-            const factor = deltaCpuMillis / delta;
-            if (!this.sampleIndex) this.samples.fill(factor);
-            this.samples[this.sampleIndex++ % this.samples.length] = factor;
-        }
-        this.prevCycles = this.cpu.cycles;
-        this.prevTime = performance.now();
-        const avg = this.samples.reduce((x, y)=>x + y) / this.samples.length;
-        return avg;
+    // one byte at a time, paced by the configured baud rate
+    feedSerial() {
+        if (this.serialBuffer.length && !this.usart.rxBusy && this.usart.writeByte(this.serialBuffer[0])) this.serialBuffer.shift();
     }
 }
 
@@ -23175,245 +23139,811 @@ class $96106803a6abb79d$export$63e3c8dfe1f20173 {
 }
 
 
-class $7426626e6f624398$export$a720aa3999bce8b5 {
-    constructor(){
-        this.audioContext = null;
-        this.oscillators = new Map();
-        this.isInitialized = false;
-        // Add click listener to enable audio on first user interaction
-        const enableAudio = ()=>{
-            this.initializeAudio();
-            document.removeEventListener('click', enableAudio);
-            document.removeEventListener('touchstart', enableAudio);
+class $df8554ab86fe4a7d$export$dc537a3a3893548e {
+    constructor(runner){
+        this.runner = runner;
+        this.watchers = new Map();
+        this.claimed = new Map();
+        this.analogSources = [];
+        this.spiDevices = [];
+        this.probes = [];
+        this.interruptListeners = [];
+        this.analogListeners = [];
+        this.frameStart = 0;
+        this.frameCycles = 1;
+        this.serialActivity = false;
+        const abort = new AbortController();
+        this.signal = abort.signal;
+        runner.onStop.push(()=>abort.abort());
+        this.i2c = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
+        const { cpu: cpu } = runner;
+        const ports = [
+            [
+                runner.port.get('B'),
+                (0, $12dded1feaa73920$export$f039e5ab0d318d39).DDR
+            ],
+            [
+                runner.port.get('C'),
+                (0, $12dded1feaa73920$export$12fe028bd33e21d9).DDR
+            ],
+            [
+                runner.port.get('D'),
+                (0, $12dded1feaa73920$export$95db00590d95ae9e).DDR
+            ]
+        ];
+        for (const [port, DDR] of ports){
+            let lastDDR = 0;
+            port.addListener((value, oldValue)=>{
+                const ddr = cpu.data[DDR];
+                const changed = value ^ oldValue | ddr ^ lastDDR;
+                lastDDR = ddr;
+                if (!changed) return;
+                // free input pins with pull-up read HIGH, without pull-up LOW
+                const free = changed & ~ddr & ~(this.claimed.get(port) || 0);
+                for(let bit = 0; bit < 8; bit++)if (free & 1 << bit) port.setPin(bit, !!(value & 1 << bit));
+                for (const w of this.watchers.get(port) || [])if (w.mask & changed) w.fn();
+            });
+        }
+        // analog sources are sampled at conversion time, unconnected pins float
+        const adc = runner.adc;
+        const convert = adc.onADCRead;
+        adc.onADCRead = (input)=>{
+            if (input.type === (0, $8f33ec1094d0bb3b$export$71d29ca8f9115ec9).SingleEnded) {
+                const source = this.analogSources[input.channel];
+                adc.channelValues[input.channel] = source ? source() : Math.random() * 5;
+                for (const fn of this.analogListeners)fn(input.channel, adc.channelValues[input.channel]);
+            }
+            convert(input);
         };
-        document.addEventListener('click', enableAudio);
-        document.addEventListener('touchstart', enableAudio);
+        runner.spi.onByte = (value)=>{
+            const selected = this.spiDevices.find((d)=>d.cs.port.pinState(d.cs.bit) === (0, $12dded1feaa73920$export$b745cd59055324b1).Low);
+            const result = selected ? selected.device.transfer(value) : 0xff;
+            cpu.addClockEvent(()=>runner.spi.completeTransfer(result), runner.spi.transferCycles);
+        };
     }
-    async initializeAudio() {
-        if (this.isInitialized) return;
-        try {
-            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            this.isInitialized = true;
-        } catch (error) {
-            console.warn('Web Audio API not supported:', error);
+    get cycles() {
+        return this.runner.cpu.cycles;
+    }
+    nanos() {
+        return Math.round(this.runner.cpu.cycles / this.runner.FREQ * 1e9);
+    }
+    millis() {
+        return Math.round(this.runner.cpu.cycles / this.runner.FREQ * 1e3);
+    }
+    /** called once per run-loop slice, before the part frames */ frame() {
+        this.frameCycles = Math.max(1, this.cycles - this.frameStart);
+        this.frameStart = this.cycles;
+    }
+    /**
+   * Parses Arduino Uno pin numbers: "13", "A0", or lists like "2,3,4".
+   * 0-7 → PORTD, 8-13 → PORTB, 14-19 (A0-A5) → PORTC
+   */ parse(value) {
+        const pins = [];
+        for (let s of (value || '').split(',')){
+            s = s.trim();
+            const n = /^A[0-5]$/i.test(s) ? 14 + parseInt(s[1], 10) : parseInt(s, 10);
+            if (!(n >= 0 && n <= 19)) {
+                if (s) console.warn(`AVR8js: unknown pin "${s}"`);
+                continue;
+            }
+            if (n < 8) pins.push({
+                port: this.runner.port.get('D'),
+                bit: n
+            });
+            else if (n < 14) pins.push({
+                port: this.runner.port.get('B'),
+                bit: n - 8
+            });
+            else pins.push({
+                port: this.runner.port.get('C'),
+                bit: n - 14,
+                adc: n - 14
+            });
+        }
+        return pins;
+    }
+    pins(el, attr = 'pin') {
+        return this.parse(el.getAttribute(attr));
+    }
+    pin(el, attr = 'pin') {
+        return this.pins(el, attr)[0];
+    }
+    /** the pin of an analog input; plain 0-5 is kept as A0-A5 for configs written before A0 worked */ analogPin(el, attr = 'pin') {
+        const value = (el.getAttribute(attr) || '').trim();
+        return /^[0-5]$/.test(value) ? this.parse('A' + value)[0] : this.pin(el, attr);
+    }
+    state(p) {
+        return p.port.pinState(p.bit);
+    }
+    high(p) {
+        return p.port.pinState(p.bit) === (0, $12dded1feaa73920$export$b745cd59055324b1).High;
+    }
+    low(p) {
+        return p.port.pinState(p.bit) === (0, $12dded1feaa73920$export$b745cd59055324b1).Low;
+    }
+    /** calls fn whenever the level or the mode of one of the pins changes */ watch(pins, fn) {
+        for (const p of Array.isArray(pins) ? pins : [
+            pins
+        ]){
+            const list = this.watchers.get(p.port) || [];
+            list.push({
+                mask: 1 << p.bit,
+                fn: fn
+            });
+            this.watchers.set(p.port, list);
         }
     }
-    async startTone(buzzer, frequency = 1000) {
-        await this.initializeAudio();
-        if (!this.audioContext) return;
-        // Resume audio context if it's suspended (required by browser policies)
-        if (this.audioContext.state === 'suspended') await this.audioContext.resume();
-        // Stop any existing tone for this buzzer
-        this.stopTone(buzzer);
-        const oscillator = this.audioContext.createOscillator();
-        const gainNode = this.audioContext.createGain();
-        oscillator.connect(gainNode);
-        gainNode.connect(this.audioContext.destination);
-        oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-        oscillator.type = 'square' // Square wave for buzzer-like sound
-        ;
-        gainNode.gain.setValueAtTime(0.1, this.audioContext.currentTime) // Low volume
-        ;
-        oscillator.start();
-        this.oscillators.set(buzzer, {
-            oscillator: oscillator,
-            gainNode: gainNode
+    /** drives an input pin from outside */ set(p, level) {
+        this.claimed.set(p.port, (this.claimed.get(p.port) || 0) | 1 << p.bit);
+        p.port.setPin(p.bit, level);
+    }
+    /**
+   * A switch between the pin and GND (with INPUT_PULLUP) or VCC (with an
+   * external pull-down, for INPUT). Parts that are wired to GND internally
+   * (joystick SEL, KY-040 SW, ...) pass toGround. Returns the function to call
+   * when the switch state changes.
+   */ contact(p, closed, toGround = false) {
+        if (!p) return ()=>{};
+        const update = ()=>{
+            const pullup = this.state(p) === (0, $12dded1feaa73920$export$b745cd59055324b1).InputPullUp;
+            this.set(p, toGround ? !closed() && pullup : closed() !== pullup);
+        };
+        this.watch(p, update);
+        update();
+        return update;
+    }
+    /**
+   * Integrates the sampled boolean states over CPU cycles. The returned
+   * function gives the share of time each state was true since its last call,
+   * this is the PWM duty cycle for LEDs.
+   */ duty(pins, sample = ()=>pins.map((p)=>this.high(p))) {
+        let state = sample();
+        const acc = new Float64Array(state.length);
+        let last = this.cycles;
+        let start = last;
+        const flush = ()=>{
+            const now = this.cycles;
+            state.forEach((on, i)=>on && (acc[i] += now - last));
+            last = now;
+        };
+        this.watch(pins, ()=>{
+            flush();
+            state = sample();
+        });
+        return ()=>{
+            flush();
+            const total = last - start || 1;
+            const result = Array.from(acc, (a)=>a / total);
+            acc.fill(0);
+            start = last;
+            return result;
+        };
+    }
+    after(us, fn) {
+        this.runner.cpu.addClockEvent(fn, Math.max(1, Math.round(us * 16)));
+    }
+    /** drives the pin through a list of [level, duration in µs] steps */ sequence(p, steps, done) {
+        const next = (i)=>{
+            if (i >= steps.length) return done && done();
+            this.set(p, steps[i][0]);
+            this.after(steps[i][1], ()=>next(i + 1));
+        };
+        next(0);
+    }
+    /** voltage source (0-5V) for an analog pin, sampled on every analogRead */ analog(p, volts) {
+        if (p && p.adc !== undefined) this.analogSources[p.adc] = volts;
+    }
+    /** fn runs before every instruction, this slows the simulation down */ probe(fn) {
+        const probes = this.probes;
+        probes.push(fn);
+        this.runner.probe = probes.length === 1 ? fn : ()=>probes.forEach((p)=>p());
+    }
+    /** called whenever a peripheral raises an interrupt flag (TOV0, INTF0, ...) */ onInterrupt(fn) {
+        if (!this.interruptListeners.length) {
+            const cpu = this.runner.cpu;
+            const raise = cpu.setInterruptFlag.bind(cpu);
+            cpu.setInterruptFlag = (interrupt)=>{
+                for (const listener of this.interruptListeners)listener(interrupt);
+                raise(interrupt);
+            };
+        }
+        this.interruptListeners.push(fn);
+    }
+    /** called on every analogRead with the channel and the sampled voltage */ onAnalogRead(fn) {
+        this.analogListeners.push(fn);
+    }
+    /** the voltage an analog source currently delivers, undefined if unconnected */ voltage(channel) {
+        const source = this.analogSources[channel];
+        return source && source();
+    }
+    spi(cs, device) {
+        if (cs) this.spiDevices.push({
+            cs: cs,
+            device: device
         });
     }
-    stopTone(buzzer) {
-        const existing = this.oscillators.get(buzzer);
-        if (existing) {
-            existing.oscillator.stop();
-            this.oscillators.delete(buzzer);
-        }
+    on(el, type, fn) {
+        el.addEventListener(type, fn, {
+            signal: this.signal
+        });
     }
-    stopAllTones() {
-        for (const [buzzer] of this.oscillators)this.stopTone(buzzer);
+    num(el, attr, fallback) {
+        const value = parseFloat(el.getAttribute(attr) || '');
+        return isNaN(value) ? fallback : value;
     }
 }
 
-
-class $4a917380f5343f7f$export$bd34b67ff3c6dca7 {
-    constructor(){
-        this.servos = new Map();
-    }
-    updateServo(servo, pinHigh, currentTime) {
-        let servoData = this.servos.get(servo);
-        if (!servoData) {
-            servoData = {
-                lastPinState: false,
-                pulseStartTime: 0,
-                angle: 90 // Default to center position
-            };
-            this.servos.set(servo, servoData);
-        }
-        // Detect rising edge (start of PWM pulse)
-        if (pinHigh && !servoData.lastPinState) servoData.pulseStartTime = currentTime;
-        // Detect falling edge (end of PWM pulse)
-        if (!pinHigh && servoData.lastPinState) {
-            const pulseWidth = currentTime - servoData.pulseStartTime;
-            // Convert pulse width to servo angle
-            // Standard servo: 1ms = 0°, 1.5ms = 90°, 2ms = 180°
-            // Pulse width is in microseconds (µs)
-            if (pulseWidth >= 500 && pulseWidth <= 2500) {
-                const angle = (pulseWidth - 1000) / 1000 * 180;
-                servoData.angle = Math.max(0, Math.min(180, angle));
-                servo.angle = servoData.angle;
-            }
-        }
-        servoData.lastPinState = pinHigh;
-    }
-    resetAllServos() {
-        for (const [servo, data] of this.servos){
-            servo.angle = 90 // Reset to center position
-            ;
-            data.angle = 90;
-            data.lastPinState = false;
-        }
-    }
-}
 
 
 const $497caf50a54906b7$export$fdcc7c6a4074abc4 = 0x68;
-// DS1307 Register addresses
-const $497caf50a54906b7$var$DS1307_REG_SECONDS = 0x00;
-const $497caf50a54906b7$var$DS1307_REG_MINUTES = 0x01;
-const $497caf50a54906b7$var$DS1307_REG_HOURS = 0x02;
-const $497caf50a54906b7$var$DS1307_REG_WEEKDAY = 0x03;
-const $497caf50a54906b7$var$DS1307_REG_DATE = 0x04;
-const $497caf50a54906b7$var$DS1307_REG_MONTH = 0x05;
-const $497caf50a54906b7$var$DS1307_REG_YEAR = 0x06;
-const $497caf50a54906b7$var$DS1307_REG_CONTROL = 0x07;
-const $497caf50a54906b7$var$DS1307_REG_RAM_START = 0x08;
-const $497caf50a54906b7$var$DS1307_REG_RAM_END = 0x3F;
-// Clock halt bit in seconds register
-const $497caf50a54906b7$var$DS1307_CH_BIT = 0x80;
-// 12/24 hour mode bit in hours register
-const $497caf50a54906b7$var$DS1307_12_24_BIT = 0x40;
-const $497caf50a54906b7$var$DS1307_AM_PM_BIT = 0x20;
-// Convert decimal to BCD (Binary Coded Decimal)
-function $497caf50a54906b7$var$decToBcd(dec) {
-    return (Math.floor(dec / 10) & 0x0F) << 4 | dec % 10;
-}
-// Convert BCD to decimal
-function $497caf50a54906b7$var$bcdToDec(bcd) {
-    return (bcd >> 4 & 0x0F) * 10 + (bcd & 0x0F);
-}
+const $497caf50a54906b7$var$bcd = (value)=>(value / 10 | 0) << 4 | value % 10;
+const $497caf50a54906b7$var$dec = (value)=>(value >> 4) * 10 + (value & 0x0f);
 class $497caf50a54906b7$export$fba8eb9ee18edd0a {
-    constructor(cpuMillis){
+    constructor(cpuMillis, initTime){
         this.cpuMillis = cpuMillis;
-        this.registers = new Uint8Array(64) // 64 bytes total (8 clock + 56 RAM)
-        ;
-        this.currentRegister = 0;
-        this.registerSet = false;
-        this.clockHalted = false;
-        this.is24HourMode = true;
-        this.startTime = Date.now();
-        this.initializeRTC();
+        this.registers = new Uint8Array(64);
+        this.pointer = 0;
+        this.firstByte = true;
+        this.timeWritten = false;
+        let time;
+        if (initTime === '0') time = Date.UTC(2000, 0, 1);
+        else if (initTime && initTime !== 'now') time = Date.parse(/z$/i.test(initTime) ? initTime : initTime + 'Z');
+        else time = Date.now() - new Date().getTimezoneOffset() * 60000;
+        this.base = (isNaN(time) ? Date.now() : time) - cpuMillis();
     }
-    initializeRTC() {
-        // Initialize with current system time
-        const now = new Date();
-        this.registers[$497caf50a54906b7$var$DS1307_REG_SECONDS] = $497caf50a54906b7$var$decToBcd(now.getSeconds());
-        this.registers[$497caf50a54906b7$var$DS1307_REG_MINUTES] = $497caf50a54906b7$var$decToBcd(now.getMinutes());
-        if (this.is24HourMode) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(now.getHours());
-        else {
-            let hours = now.getHours();
-            const isPM = hours >= 12;
-            if (hours === 0) hours = 12;
-            else if (hours > 12) hours -= 12;
-            this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(hours) | $497caf50a54906b7$var$DS1307_12_24_BIT;
-            if (isPM) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] |= $497caf50a54906b7$var$DS1307_AM_PM_BIT;
-        }
-        this.registers[$497caf50a54906b7$var$DS1307_REG_WEEKDAY] = now.getDay() + 1 // DS1307 uses 1-7
-        ;
-        this.registers[$497caf50a54906b7$var$DS1307_REG_DATE] = $497caf50a54906b7$var$decToBcd(now.getDate());
-        this.registers[$497caf50a54906b7$var$DS1307_REG_MONTH] = $497caf50a54906b7$var$decToBcd(now.getMonth() + 1);
-        this.registers[$497caf50a54906b7$var$DS1307_REG_YEAR] = $497caf50a54906b7$var$decToBcd(now.getFullYear() % 100);
-        // Control register (default: no square wave output)
-        this.registers[$497caf50a54906b7$var$DS1307_REG_CONTROL] = 0x00;
-    }
-    updateClock() {
-        if (this.clockHalted) return;
-        // Calculate elapsed time since start in seconds
-        const elapsedMs = Date.now() - this.startTime;
-        const totalSeconds = Math.floor(elapsedMs / 1000);
-        // Get initial time from when RTC was started
-        const initialTime = new Date(this.startTime);
-        const currentTime = new Date(this.startTime + elapsedMs);
-        // Update registers with current time
-        this.registers[$497caf50a54906b7$var$DS1307_REG_SECONDS] = $497caf50a54906b7$var$decToBcd(currentTime.getSeconds());
-        this.registers[$497caf50a54906b7$var$DS1307_REG_MINUTES] = $497caf50a54906b7$var$decToBcd(currentTime.getMinutes());
-        if (this.is24HourMode) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(currentTime.getHours());
-        else {
-            let hours = currentTime.getHours();
-            const isPM = hours >= 12;
-            if (hours === 0) hours = 12;
-            else if (hours > 12) hours -= 12;
-            this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] = $497caf50a54906b7$var$decToBcd(hours) | $497caf50a54906b7$var$DS1307_12_24_BIT;
-            if (isPM) this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] |= $497caf50a54906b7$var$DS1307_AM_PM_BIT;
-        }
-        this.registers[$497caf50a54906b7$var$DS1307_REG_WEEKDAY] = currentTime.getDay() + 1;
-        this.registers[$497caf50a54906b7$var$DS1307_REG_DATE] = $497caf50a54906b7$var$decToBcd(currentTime.getDate());
-        this.registers[$497caf50a54906b7$var$DS1307_REG_MONTH] = $497caf50a54906b7$var$decToBcd(currentTime.getMonth() + 1);
-        this.registers[$497caf50a54906b7$var$DS1307_REG_YEAR] = $497caf50a54906b7$var$decToBcd(currentTime.getFullYear() % 100);
+    latchTime() {
+        const now = new Date(this.base + this.cpuMillis());
+        const r = this.registers;
+        r[0] = $497caf50a54906b7$var$bcd(now.getUTCSeconds());
+        r[1] = $497caf50a54906b7$var$bcd(now.getUTCMinutes());
+        r[2] = $497caf50a54906b7$var$bcd(now.getUTCHours());
+        r[3] = now.getUTCDay() + 1;
+        r[4] = $497caf50a54906b7$var$bcd(now.getUTCDate());
+        r[5] = $497caf50a54906b7$var$bcd(now.getUTCMonth() + 1);
+        r[6] = $497caf50a54906b7$var$bcd(now.getUTCFullYear() % 100);
     }
     i2cConnect(addr, write) {
-        return addr === $497caf50a54906b7$export$fdcc7c6a4074abc4;
+        this.firstByte = write;
+        if (!write) this.latchTime();
+        return true;
     }
     i2cWriteByte(value) {
-        if (!this.registerSet) {
-            // First byte is register address
-            this.currentRegister = value & 0x3F // DS1307 has 64 registers
-            ;
-            this.registerSet = true;
-        } else // Subsequent bytes are data
-        if (this.currentRegister <= $497caf50a54906b7$var$DS1307_REG_RAM_END) {
-            this.registers[this.currentRegister] = value;
-            // Handle special cases for clock registers
-            if (this.currentRegister === $497caf50a54906b7$var$DS1307_REG_SECONDS) {
-                this.clockHalted = (value & $497caf50a54906b7$var$DS1307_CH_BIT) !== 0;
-                if (!this.clockHalted) // If clock is being started, reset our reference time
-                this.startTime = Date.now();
-            } else if (this.currentRegister === $497caf50a54906b7$var$DS1307_REG_HOURS) this.is24HourMode = (value & $497caf50a54906b7$var$DS1307_12_24_BIT) === 0;
-            this.currentRegister = this.currentRegister + 1 & 0x3F;
+        if (this.firstByte) {
+            this.firstByte = false;
+            this.pointer = value & 0x3f;
+            this.latchTime();
+        } else {
+            if (this.pointer < 7) this.timeWritten = true;
+            this.registers[this.pointer] = value;
+            this.pointer = this.pointer + 1 & 0x3f;
         }
         return true;
     }
-    i2cReadByte(acked) {
-        this.updateClock();
-        const value = this.registers[this.currentRegister] || 0;
-        if (acked) this.currentRegister = this.currentRegister + 1 & 0x3F;
+    i2cReadByte() {
+        const value = this.registers[this.pointer];
+        this.pointer = this.pointer + 1 & 0x3f;
         return value;
     }
     i2cDisconnect() {
-        this.registerSet = false;
+        if (!this.timeWritten) return;
+        this.timeWritten = false;
+        const r = this.registers;
+        const hours = r[2] & 0x40 // 12h mode
+         ? $497caf50a54906b7$var$dec(r[2] & 0x1f) % 12 + (r[2] & 0x20 ? 12 : 0) : $497caf50a54906b7$var$dec(r[2] & 0x3f);
+        const time = Date.UTC(2000 + $497caf50a54906b7$var$dec(r[6]), $497caf50a54906b7$var$dec(r[5] & 0x1f) - 1, $497caf50a54906b7$var$dec(r[4] & 0x3f), hours, $497caf50a54906b7$var$dec(r[1] & 0x7f), $497caf50a54906b7$var$dec(r[0] & 0x7f));
+        this.base = time - this.cpuMillis();
     }
-    // Utility methods for external access
-    getCurrentTime() {
-        this.updateClock();
-        const seconds = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_SECONDS] & 0x7F);
-        const minutes = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_MINUTES] & 0x7F);
-        let hours;
-        if (this.is24HourMode) hours = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] & 0x3F);
+}
+
+
+const $2d6661bb146578fe$var$WIDTH = 240;
+const $2d6661bb146578fe$var$HEIGHT = 320;
+const $2d6661bb146578fe$var$SWRESET = 0x01;
+const $2d6661bb146578fe$var$INVOFF = 0x20;
+const $2d6661bb146578fe$var$INVON = 0x21;
+const $2d6661bb146578fe$var$CASET = 0x2a;
+const $2d6661bb146578fe$var$PASET = 0x2b;
+const $2d6661bb146578fe$var$RAMWR = 0x2c;
+const $2d6661bb146578fe$var$MADCTL = 0x36;
+class $2d6661bb146578fe$export$7e2e2133bf3de85f {
+    constructor(dataMode){
+        this.dataMode = dataMode;
+        this.image = new ImageData($2d6661bb146578fe$var$WIDTH, $2d6661bb146578fe$var$HEIGHT);
+        this.dirty = true;
+        this.command = 0;
+        this.params = [];
+        this.highByte = -1;
+        this.x0 = 0;
+        this.x1 = $2d6661bb146578fe$var$WIDTH - 1;
+        this.y0 = 0;
+        this.y1 = $2d6661bb146578fe$var$HEIGHT - 1;
+        this.x = 0;
+        this.y = 0;
+        this.madctl = 0;
+        this.invert = false;
+        this.reset();
+    }
+    reset() {
+        this.madctl = 0;
+        this.invert = false;
+        this.image.data.fill(0);
+        for(let i = 3; i < this.image.data.length; i += 4)this.image.data[i] = 255;
+        this.dirty = true;
+    }
+    transfer(value) {
+        if (this.dataMode()) this.data(value);
         else {
-            hours = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] & 0x1F);
-            if (this.registers[$497caf50a54906b7$var$DS1307_REG_HOURS] & $497caf50a54906b7$var$DS1307_AM_PM_BIT) {
-                if (hours !== 12) hours += 12;
-            } else if (hours === 12) hours = 0;
+            this.command = value;
+            this.params = [];
+            this.highByte = -1;
+            if (value === $2d6661bb146578fe$var$RAMWR) {
+                this.x = this.x0;
+                this.y = this.y0;
+            } else if (value === $2d6661bb146578fe$var$SWRESET) this.reset();
+            else if (value === $2d6661bb146578fe$var$INVON !== this.invert && (value === $2d6661bb146578fe$var$INVON || value === $2d6661bb146578fe$var$INVOFF)) {
+                // inversion is its own inverse, so flip the whole frame buffer
+                this.invert = value === $2d6661bb146578fe$var$INVON;
+                const d = this.image.data;
+                for(let i = 0; i < d.length; i++)if (i % 4 !== 3) d[i] = 255 - d[i];
+                this.dirty = true;
+            }
         }
-        const date = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_DATE] & 0x3F);
-        const month = $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_MONTH] & 0x1F) - 1;
-        const year = 2000 + $497caf50a54906b7$var$bcdToDec(this.registers[$497caf50a54906b7$var$DS1307_REG_YEAR]);
-        return new Date(year, month, date, hours, minutes, seconds);
+        return 0;
     }
-    isClockHalted() {
-        return this.clockHalted;
+    data(value) {
+        if (this.command === $2d6661bb146578fe$var$RAMWR) {
+            if (this.highByte < 0) this.highByte = value;
+            else {
+                this.pixel(this.highByte << 8 | value);
+                this.highByte = -1;
+            }
+            return;
+        }
+        const p = this.params;
+        p.push(value);
+        if (this.command === $2d6661bb146578fe$var$CASET && p.length === 4) {
+            this.x0 = p[0] << 8 | p[1];
+            this.x1 = p[2] << 8 | p[3];
+        } else if (this.command === $2d6661bb146578fe$var$PASET && p.length === 4) {
+            this.y0 = p[0] << 8 | p[1];
+            this.y1 = p[2] << 8 | p[3];
+        } else if (this.command === $2d6661bb146578fe$var$MADCTL) this.madctl = value;
     }
-    setTime(date) {
-        this.startTime = date.getTime();
-        this.updateClock();
+    pixel(color) {
+        // MADCTL: MY 0x80, MX 0x40, MV 0x20, BGR 0x08. The panel is mounted
+        // mirrored in x and with BGR subpixels, which the libraries compensate.
+        let px = this.x;
+        let py = this.y;
+        if (this.madctl & 0x20) [px, py] = [
+            py,
+            px
+        ];
+        if (!(this.madctl & 0x40)) px = $2d6661bb146578fe$var$WIDTH - 1 - px;
+        if (this.madctl & 0x80) py = $2d6661bb146578fe$var$HEIGHT - 1 - py;
+        if (px >= 0 && px < $2d6661bb146578fe$var$WIDTH && py >= 0 && py < $2d6661bb146578fe$var$HEIGHT) {
+            let r = (color >> 11 & 0x1f) * 255 / 31;
+            const g = (color >> 5 & 0x3f) * 255 / 63;
+            let b = (color & 0x1f) * 255 / 31;
+            if (!(this.madctl & 0x08)) [r, b] = [
+                b,
+                r
+            ];
+            const i = (py * $2d6661bb146578fe$var$WIDTH + px) * 4;
+            const d = this.image.data;
+            d[i] = this.invert ? 255 - r : r;
+            d[i + 1] = this.invert ? 255 - g : g;
+            d[i + 2] = this.invert ? 255 - b : b;
+            this.dirty = true;
+        }
+        if (++this.x > this.x1) {
+            this.x = this.x0;
+            if (++this.y > this.y1) this.y = this.y0;
+        }
     }
+}
+
+
+/**
+ * HD44780 character LCD behind a PCF8574 I2C backpack (LCD1602, LCD2004)
+ * Part of AVR8js Electron Playground
+ *
+ * Copyright (C) 2019, Uri Shaked
+ * Copyright (C) 2020, Anderson Costa
+ */ const $ec32cef1cc338d6b$export$dd8dc45f6c3d9010 = 0x27;
+// PCF8574 pins: P0 = RS, P1 = RW, P2 = EN, P3 = backlight, P4-P7 = D4-D7
+const $ec32cef1cc338d6b$var$RS = 0x01;
+const $ec32cef1cc338d6b$var$RW = 0x02;
+const $ec32cef1cc338d6b$var$EN = 0x04;
+const $ec32cef1cc338d6b$var$BACKLIGHT = 0x08;
+class $ec32cef1cc338d6b$export$d85e7efeead8c33f {
+    constructor(cols = 16, rows = 2){
+        this.cols = cols;
+        this.rows = rows;
+        this.cgram = new Uint8Array(64);
+        this.ddram = new Uint8Array(128).fill(32);
+        this.addr = 0;
+        this.shift = 0;
+        this.cgramMode = false;
+        this.increment = true;
+        this.shiftMode = false;
+        this.is8bit = true;
+        this.nibble = -1 // pending high nibble in 4 bit mode
+        ;
+        this.enable = false;
+        this.displayOn = false;
+        this.cursorOn = false;
+        this.blinkOn = false;
+        this.backlight = false;
+        this.updated = true;
+        this.cgramUpdated = false;
+    }
+    i2cConnect() {
+        return true;
+    }
+    i2cDisconnect() {}
+    i2cReadByte() {
+        return 0xff;
+    }
+    i2cWriteByte(value) {
+        const backlight = !!(value & $ec32cef1cc338d6b$var$BACKLIGHT);
+        if (backlight !== this.backlight) {
+            this.backlight = backlight;
+            this.updated = true;
+        }
+        // the HD44780 latches data on the falling edge of EN
+        const enable = !!(value & $ec32cef1cc338d6b$var$EN);
+        if (this.enable && !enable && !(value & $ec32cef1cc338d6b$var$RW)) this.latch(value & 0xf0, !!(value & $ec32cef1cc338d6b$var$RS));
+        this.enable = enable;
+        return true;
+    }
+    latch(data, rs) {
+        if (!this.is8bit) {
+            if (this.nibble < 0) {
+                this.nibble = data;
+                return;
+            }
+            data = this.nibble | data >> 4;
+            this.nibble = -1;
+        }
+        if (rs) this.write(data);
+        else this.command(data);
+        this.updated = true;
+    }
+    command(value) {
+        if (value & 0x80) {
+            this.cgramMode = false;
+            this.addr = value & 0x7f;
+        } else if (value & 0x40) {
+            this.cgramMode = true;
+            this.addr = value & 0x3f;
+        } else if (value & 0x20) {
+            this.is8bit = !!(value & 0x10);
+            this.nibble = -1;
+        } else if (value & 0x10) {
+            if (value & 0x08) // display shift: shifting left moves the window to the right
+            this.shift = (this.shift + (value & 0x04 ? -1 : 1) + 40) % 40;
+            else this.addr = this.addr + (value & 0x04 ? 1 : -1) & 0x7f;
+        } else if (value & 0x08) {
+            this.displayOn = !!(value & 0x04);
+            this.cursorOn = !!(value & 0x02);
+            this.blinkOn = !!(value & 0x01);
+        } else if (value & 0x04) {
+            this.increment = !!(value & 0x02);
+            this.shiftMode = !!(value & 0x01);
+        } else if (value & 0x02) {
+            this.cgramMode = false;
+            this.addr = 0;
+            this.shift = 0;
+        } else if (value & 0x01) {
+            this.cgramMode = false;
+            this.ddram.fill(32);
+            this.addr = 0;
+            this.shift = 0;
+            this.increment = true;
+        }
+    }
+    write(value) {
+        if (this.cgramMode) {
+            // the wokwi font stores the 5 pixel columns in reverse order
+            this.cgram[this.addr] = (value & 0x01) << 4 | (value & 0x02) << 2 | value & 0x04 | (value & 0x08) >> 2 | (value & 0x10) >> 4;
+            this.addr = this.addr + 1 & 0x3f;
+            this.cgramUpdated = true;
+        } else {
+            const step = this.increment ? 1 : -1;
+            this.ddram[this.addr] = value;
+            this.addr = this.addr + step & 0x7f;
+            if (this.shiftMode) this.shift = (this.shift + step + 40) % 40;
+        }
+    }
+    update() {
+        if (!this.updated) return null;
+        this.updated = false;
+        // row start addresses: 0x00, 0x40, 0x14, 0x54 for a 20x4 display
+        const offsets = [
+            0x00,
+            0x40,
+            this.cols,
+            0x40 + this.cols
+        ];
+        const characters = new Uint8Array(this.cols * this.rows).fill(32);
+        let cursorX = -1;
+        let cursorY = -1;
+        for(let row = 0; row < this.rows; row++){
+            const line = offsets[row] & 0x40;
+            const start = offsets[row] & 0x3f;
+            if (this.displayOn) for(let col = 0; col < this.cols; col++)characters[row * this.cols + col] = this.ddram[line + (start + col + this.shift) % 40];
+            const x = (this.addr & 0x3f) - start - this.shift;
+            if ((this.addr & 0x40) === line && x >= 0 && x < this.cols) {
+                cursorX = x;
+                cursorY = row;
+            }
+        }
+        const visible = this.displayOn && !this.cgramMode && cursorY >= 0;
+        const result = {
+            characters: characters,
+            backlight: this.backlight,
+            cursor: visible && this.cursorOn,
+            blink: visible && this.blinkOn,
+            cursorX: cursorX,
+            cursorY: cursorY,
+            cgramUpdated: this.cgramUpdated
+        };
+        this.cgramUpdated = false;
+        return result;
+    }
+}
+
+
+const $09c6690ef6b478a3$export$c2e01cb18b7c9e44 = 0x68;
+const $09c6690ef6b478a3$var$GYRO_CONFIG = 0x1b;
+const $09c6690ef6b478a3$var$ACCEL_CONFIG = 0x1c;
+const $09c6690ef6b478a3$var$ACCEL_XOUT_H = 0x3b;
+const $09c6690ef6b478a3$var$PWR_MGMT_1 = 0x6b;
+const $09c6690ef6b478a3$var$WHO_AM_I = 0x75;
+class $09c6690ef6b478a3$export$c9533601316bfd33 {
+    constructor(values){
+        this.values = values;
+        this.registers = new Uint8Array(128);
+        this.pointer = 0;
+        this.firstByte = true;
+        this.reset();
+    }
+    reset() {
+        this.registers.fill(0);
+        this.registers[$09c6690ef6b478a3$var$PWR_MGMT_1] = 0x40 // sleep
+        ;
+        this.registers[$09c6690ef6b478a3$var$WHO_AM_I] = 0x68;
+    }
+    latchValues() {
+        const { accel: accel, gyro: gyro, temperature: temperature } = this.values();
+        const accelScale = 16384 >> (this.registers[$09c6690ef6b478a3$var$ACCEL_CONFIG] >> 3 & 3);
+        const gyroScale = [
+            131,
+            65.5,
+            32.8,
+            16.4
+        ][this.registers[$09c6690ef6b478a3$var$GYRO_CONFIG] >> 3 & 3];
+        const words = [
+            ...accel.map((g)=>g * accelScale),
+            (temperature - 36.53) * 340,
+            ...gyro.map((dps)=>dps * gyroScale)
+        ];
+        words.forEach((value, i)=>{
+            const word = Math.max(-32768, Math.min(32767, Math.round(value))) & 0xffff;
+            this.registers[$09c6690ef6b478a3$var$ACCEL_XOUT_H + 2 * i] = word >> 8;
+            this.registers[$09c6690ef6b478a3$var$ACCEL_XOUT_H + 2 * i + 1] = word & 0xff;
+        });
+    }
+    i2cConnect(addr, write) {
+        this.firstByte = write;
+        if (!write) this.latchValues();
+        return true;
+    }
+    i2cWriteByte(value) {
+        if (this.firstByte) {
+            this.firstByte = false;
+            this.pointer = value & 0x7f;
+            return true;
+        }
+        if (this.pointer === $09c6690ef6b478a3$var$PWR_MGMT_1 && value & 0x80) this.reset() // DEVICE_RESET clears itself
+        ;
+        else if (this.pointer !== $09c6690ef6b478a3$var$WHO_AM_I) this.registers[this.pointer] = value;
+        this.pointer = this.pointer + 1 & 0x7f;
+        return true;
+    }
+    i2cReadByte() {
+        const value = this.registers[this.pointer];
+        this.pointer = this.pointer + 1 & 0x7f;
+        return value;
+    }
+    i2cDisconnect() {}
+}
+
+
+const $ccb0d1c87c771c74$var$BLOCK = 512;
+const $ccb0d1c87c771c74$var$SECTORS = 16384 // 8 MB, like the wokwi card
+;
+const $ccb0d1c87c771c74$var$RESERVED = 1;
+const $ccb0d1c87c771c74$var$FAT_SECTORS = 64;
+const $ccb0d1c87c771c74$var$ROOT_SECTORS = 32 // 512 entries
+;
+class $ccb0d1c87c771c74$export$98861c6bdb42fdbf {
+    block(n) {
+        let data = this.blocks.get(n);
+        if (!data) {
+            data = new Uint8Array($ccb0d1c87c771c74$var$BLOCK);
+            if (n === 0) $ccb0d1c87c771c74$var$format(data);
+            if (n === $ccb0d1c87c771c74$var$RESERVED || n === $ccb0d1c87c771c74$var$RESERVED + $ccb0d1c87c771c74$var$FAT_SECTORS) data.set([
+                0xf8,
+                0xff,
+                0xff,
+                0xff
+            ]);
+            this.blocks.set(n, data);
+        }
+        return data;
+    }
+    transfer(value) {
+        if (this.writeBlock >= 0 && !this.command.length) return this.receive(value);
+        if (this.command.length || (value & 0xc0) === 0x40) {
+            this.command.push(value);
+            if (this.command.length === 6) {
+                this.execute(this.command);
+                this.command = [];
+            }
+            return 0xff;
+        }
+        if (!this.out.length && this.readNext >= 0) this.sendBlock(this.readNext++);
+        return this.out.length ? this.out.shift() : 0xff;
+    }
+    receive(value) {
+        if (!this.writeData) {
+            if (value === 0xfe || value === 0xfc) this.writeData = [];
+            else if (value === 0xfd) {
+                // stop token of a multi block write
+                this.writeBlock = -1;
+                this.out = [
+                    0xff,
+                    0x00
+                ];
+            }
+            return this.out.length ? this.out.shift() : 0xff;
+        }
+        this.writeData.push(value);
+        if (this.writeData.length === $ccb0d1c87c771c74$var$BLOCK + 2) {
+            this.block(this.writeBlock).set(this.writeData.slice(0, $ccb0d1c87c771c74$var$BLOCK));
+            this.writeData = null;
+            this.out = [
+                0x05,
+                0x00,
+                0xff
+            ] // data accepted, busy, ready
+            ;
+            if (this.writeMulti) this.writeBlock++;
+            else this.writeBlock = -1;
+            return 0xff;
+        }
+        return 0xff;
+    }
+    sendBlock(n) {
+        this.out.push(0xfe, ...this.block(n), 0xff, 0xff);
+    }
+    execute([cmd, a3, a2, a1, a0]) {
+        cmd &= 0x3f;
+        const arg = (a3 << 24 | a2 << 16 | a1 << 8 | a0) >>> 0;
+        const r1 = this.idle ? 0x01 : 0x00;
+        const app = this.appCommand;
+        this.appCommand = false;
+        this.out = [
+            0xff
+        ] // one byte delay before every response
+        ;
+        switch(cmd){
+            case 0:
+                this.idle = true;
+                this.readNext = -1;
+                this.writeBlock = -1;
+                this.out.push(0x01);
+                break;
+            case 8:
+                this.out.push(r1, 0x00, 0x00, a1 & 0x0f, a0);
+                break;
+            case 55:
+                this.appCommand = true;
+                this.out.push(r1);
+                break;
+            case 41:
+            case 1:
+                this.idle = false;
+                this.out.push(app || cmd === 1 ? 0x00 : 0x05);
+                break;
+            case 58:
+                this.out.push(r1, 0xc0, 0xff, 0x80, 0x00);
+                break;
+            case 9:
+                this.out.push(r1, 0xff, 0xfe, 0x40, 0x0e, 0x00, 0x32, 0x5b, 0x59, 0x00, 0x00, 0x00, $ccb0d1c87c771c74$var$SECTORS / 1024 - 1, 0x7f, 0x80, 0x0a, 0x40, 0x00, 0x01, 0xff, 0xff);
+                break;
+            case 10:
+                this.out.push(r1, 0xff, 0xfe, 0x03, 0x53, 0x44, 0x57, 0x4f, 0x4b, 0x57, 0x49, 0x10, 0, 0, 0, 1, 0x01, 0x51, 0x01, 0xff, 0xff);
+                break;
+            case 12:
+                this.readNext = -1;
+                this.out.push(0xff, r1);
+                break;
+            case 13:
+                this.out.push(r1, 0x00);
+                break;
+            case 17:
+                this.out.push(0x00, 0xff);
+                this.sendBlock(arg);
+                break;
+            case 18:
+                this.out.push(0x00, 0xff);
+                this.sendBlock(arg);
+                this.readNext = arg + 1;
+                break;
+            case 24:
+            case 25:
+                this.out.push(0x00);
+                this.writeBlock = arg;
+                this.writeMulti = cmd === 25;
+                this.writeData = null;
+                break;
+            case 16:
+            case 23:
+            case 59:
+                this.out.push(r1);
+                break;
+            default:
+                this.out.push(r1 | 0x04) // illegal command
+                ;
+        }
+    }
+    constructor(){
+        this.blocks = new Map();
+        this.command = [];
+        this.out = [];
+        this.idle = true;
+        this.appCommand = false;
+        this.readNext = -1 // CMD18 multi block read
+        ;
+        this.writeBlock = -1 // CMD24 / CMD25 target block
+        ;
+        this.writeMulti = false;
+        this.writeData = null;
+    }
+}
+/** FAT16 boot sector without partition table ("superfloppy") */ function $ccb0d1c87c771c74$var$format(b) {
+    const view = new DataView(b.buffer);
+    b.set([
+        0xeb,
+        0x3c,
+        0x90
+    ]);
+    b.set(Array.from('MSWIN4.1', (c)=>c.charCodeAt(0)), 3);
+    view.setUint16(11, $ccb0d1c87c771c74$var$BLOCK, true);
+    b[13] = 1 // sectors per cluster
+    ;
+    view.setUint16(14, $ccb0d1c87c771c74$var$RESERVED, true);
+    b[16] = 2 // FATs
+    ;
+    view.setUint16(17, $ccb0d1c87c771c74$var$ROOT_SECTORS * $ccb0d1c87c771c74$var$BLOCK / 32, true);
+    view.setUint16(19, $ccb0d1c87c771c74$var$SECTORS, true);
+    b[21] = 0xf8 // media descriptor
+    ;
+    view.setUint16(22, $ccb0d1c87c771c74$var$FAT_SECTORS, true);
+    view.setUint16(24, 32, true) // sectors per track
+    ;
+    view.setUint16(26, 64, true) // heads
+    ;
+    b[36] = 0x80 // drive number
+    ;
+    b[38] = 0x29 // extended boot signature
+    ;
+    view.setUint32(39, 0x1234abcd, true);
+    b.set(Array.from('NO NAME    FAT16   ', (c)=>c.charCodeAt(0)), 43);
+    b[510] = 0x55;
+    b[511] = 0xaa;
 }
 
 
@@ -23463,290 +23993,6 @@ class $c63d65adc8105fd8$export$472062a354075cee {
     }
     getElement() {
         return this.container;
-    }
-}
-
-
-
-class $9cac5ab4c27a7045$export$e0bad4831cb237ba {
-    constructor(){
-        this.sensors = new Map();
-    }
-    initializeSensor(sensor, runner) {
-        if (this.sensors.has(sensor)) return; // Already initialized
-        // Create slider configuration
-        const sliderConfig = {
-            min: -40,
-            max: 125,
-            value: 25,
-            step: 0.1,
-            unit: "\xb0C",
-            label: `Temperature ${sensor.getAttribute('pin')}`
-        };
-        // Create slider callbacks
-        const sliderCallbacks = {
-            onValueChange: (temperature)=>{
-                const sensorData = this.sensors.get(sensor);
-                if (sensorData) {
-                    sensorData.temperature = temperature;
-                    this.updateSensorADC(sensor, temperature, runner);
-                }
-            }
-        };
-        const slider = new (0, $c63d65adc8105fd8$export$472062a354075cee)(sliderConfig, sliderCallbacks);
-        slider.appendTo(document.getElementById('sensors') || document.body);
-        // Store sensor data
-        const sensorData = {
-            temperature: 25.0,
-            slider: slider
-        };
-        this.sensors.set(sensor, sensorData);
-        // Initial ADC setup
-        this.updateSensorADC(sensor, 25.0, runner);
-    }
-    calculateNTCResistance(temperature) {
-        // Standard NTC thermistor calculation using Steinhart-Hart equation
-        // Using typical 10kΩ NTC thermistor parameters
-        const R0 = 10000 // Resistance at 25°C (10kΩ)
-        ;
-        const T0 = 298.15 // 25°C in Kelvin
-        ;
-        const B = 3950 // B parameter (typical value)
-        ;
-        const T = temperature + 273.15 // Convert to Kelvin
-        ;
-        const resistance = R0 * Math.exp(B * (1 / T - 1 / T0));
-        return resistance;
-    }
-    updateSensorADC(sensor, temperature, runner) {
-        const channel = (0, $d6081ff883bc8055$export$78e45a2b028eb519)(sensor);
-        if (channel === null) return;
-        // Calculate voltage divider output
-        // Assuming a 10kΩ pull-up resistor to 5V
-        const VCC = 5.0;
-        const R_PULLUP = 10000;
-        const R_NTC = this.calculateNTCResistance(temperature);
-        // Voltage divider: V_out = VCC * R_NTC / (R_PULLUP + R_NTC)
-        const voltage = VCC * R_NTC / (R_PULLUP + R_NTC);
-        // Set the ADC channel value
-        if (runner.adc && runner.adc.channelValues) runner.adc.channelValues[channel] = voltage;
-    }
-    getTemperature(sensor) {
-        const sensorData = this.sensors.get(sensor);
-        return sensorData ? sensorData.temperature : 25.0;
-    }
-    setTemperature(sensor, temperature) {
-        const sensorData = this.sensors.get(sensor);
-        if (sensorData) {
-            temperature = Math.max(-40, Math.min(125, temperature)) // Clamp to valid range
-            ;
-            sensorData.temperature = temperature;
-            sensorData.slider.setValue(temperature);
-        }
-    }
-    cleanup() {
-        for (const [sensor, data] of this.sensors)data.slider.remove();
-        this.sensors.clear();
-    }
-    // Utility method to convert resistance to temperature (for reading actual NTC sensors)
-    resistanceToTemperature(resistance) {
-        const R0 = 10000 // 10kΩ at 25°C
-        ;
-        const T0 = 298.15 // 25°C in Kelvin
-        ;
-        const B = 3950 // B parameter
-        ;
-        const T = 1 / (Math.log(resistance / R0) / B + 1 / T0);
-        return T - 273.15 // Convert back to Celsius
-        ;
-    }
-    // Utility method to get resistance from ADC reading
-    adcToResistance(adcValue, vcc = 5.0, pullupResistor = 10000) {
-        const voltage = adcValue / 1023 * vcc;
-        if (voltage >= vcc) return 0 // Short circuit
-        ;
-        if (voltage <= 0) return Infinity // Open circuit
-        ;
-        // From voltage divider: R_NTC = R_PULLUP * voltage / (VCC - voltage)
-        return pullupResistor * voltage / (vcc - voltage);
-    }
-}
-
-
-
-/**
- * LCD1602
- * Part of AVR8js Electron Playground
- *
- * Copyright (C) 2019, Uri Shaked
- * Copyright (C) 2020, Anderson Costa
- */ const $ec32cef1cc338d6b$export$dd8dc45f6c3d9010 = 0x27;
-const $ec32cef1cc338d6b$var$LCD_MODE_CMD = 0x00;
-const $ec32cef1cc338d6b$var$LCD_MODE_DATA = 0x40;
-const $ec32cef1cc338d6b$var$LCD_CMD_CLEAR = 0x01;
-const $ec32cef1cc338d6b$var$LCD_CMD_HOME = 0x02;
-const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE = 0x04;
-const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_INCREMENT = 0x02;
-const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_DECREMENT = 0x00;
-const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_SHIFT = 0x01;
-const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CONTROL = 0x08;
-const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_ENABLE = 0x04;
-const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR = 0x02;
-const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR_BLINK = 0x01;
-const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT = 0x10;
-const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_CURSOR = 0x00;
-const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_DISPLAY = 0x08;
-const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_LEFT = 0x00;
-const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_RIGHT = 0x04;
-const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION = 0x20;
-const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION_LCD_1LINE = 0x00;
-const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION_LCD_2LINE = 0x08;
-const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION_5x10_DOTS = 0x04;
-const $ec32cef1cc338d6b$var$LCD_CMD_SET_CGRAM_ADDR = 0x40;
-const $ec32cef1cc338d6b$var$LCD_CMD_SET_DRAM_ADDR = 0x80;
-// Extra
-const $ec32cef1cc338d6b$var$LCD_CMD_SET_CONTRAST = 0x81;
-// Oscillator frequency defined in datasheet is 270 kHz
-const $ec32cef1cc338d6b$var$fOsc = 270000;
-class $ec32cef1cc338d6b$export$c3787bd0c90a66b8 {
-    constructor(cpuMillis){
-        this.cpuMillis = cpuMillis;
-        this.cgram = new Uint8Array(64);
-        this.ddram = new Uint8Array(128);
-        this.addr = 0x00 // Address
-        ;
-        this.shift = 0x00 // Shift Register
-        ;
-        this.data = 0x00 // Data Register
-        ;
-        this.displayOn = false;
-        this.blinkOn = false;
-        this.cursorOn = false;
-        this.backlight = false;
-        this.firstByte = true;
-        this.commandMode = false;
-        this.cgramMode = false;
-        this.cgramUpdated = true;
-        this.incrementMode = true;
-        this.shiftMode = false;
-        this.is8bit = true;
-        this.updated = false;
-        this.render();
-    }
-    update() {
-        if (this.updated) {
-            this.updated = false;
-            return this.render();
-        }
-        return false;
-    }
-    render() {
-        let characters = new Uint8Array(32);
-        if (this.displayOn) {
-            const r1 = this.shift % 64;
-            const r2 = 64 + this.shift % 64;
-            // Set characters
-            characters.set(this.ddram.slice(r1, r1 + 16));
-            characters.set(this.ddram.slice(r2, r2 + 16), 16);
-        } else characters.fill(32);
-        const result = {
-            blink: this.blinkOn,
-            cursor: this.cursorOn,
-            cursorX: this.addr % 64,
-            cursorY: Math.floor(this.addr / 64),
-            characters: characters,
-            backlight: this.backlight,
-            cgram: this.cgram,
-            cgramUpdated: this.cgramUpdated
-        };
-        this.cgramUpdated = false;
-        return result;
-    }
-    backlightOn(value) {
-        if (this.backlight !== value) this.backlight = value;
-    }
-    i2cConnect() {
-        return true;
-    }
-    i2cDisconnect() {}
-    i2cReadByte() {
-        return 0xff;
-    }
-    i2cWriteByte(value) {
-        const data = value & 0xf0;
-        const rs = value & 0x01 ? true : false // Register Select
-        ;
-        const bl = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CONTROL ? true : false;
-        // Turn on/off backlight
-        this.backlightOn(bl);
-        // Check data write
-        if (value & 0x04 && !(value & 0x02)) this.writeData(data, rs);
-        return this.updated = true;
-    }
-    writeData(value, rs) {
-        if (!this.is8bit) {
-            // Check register
-            if (this.firstByte) {
-                this.firstByte = false;
-                this.data = value;
-                return false;
-            }
-            value = this.data | value >> 4;
-            this.firstByte = true;
-        }
-        if (rs) this.processData(value);
-        else this.processCommand(value);
-        this.updated = true;
-    }
-    processCommand(value) {
-        // Check commands
-        if (value & $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION) this.is8bit = value & 0x10 ? true : false;
-        else if (value & $ec32cef1cc338d6b$var$LCD_CMD_SET_DRAM_ADDR) {
-            this.cgramMode = false;
-            this.addr = value & 0x7f;
-        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_SET_CGRAM_ADDR) {
-            this.cgramMode = true;
-            this.addr = value & 0x3f;
-        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_SHIFT) {
-            const shiftDisplay = value & $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_DISPLAY ? true : false;
-            const shiftRight = value & $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_RIGHT ? 1 : -1;
-            this.cgramMode = false;
-            this.addr = (this.addr + shiftRight) % 128;
-            if (shiftDisplay) this.shift = (this.shift + shiftRight) % 64;
-        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CONTROL) {
-            this.displayOn = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_ENABLE ? true : false;
-            this.blinkOn = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR_BLINK ? true : false;
-            this.cursorOn = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR ? true : false;
-        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE) {
-            this.cgramMode = false;
-            this.incrementMode = value & $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_INCREMENT ? true : false;
-            this.shiftMode = value & $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_SHIFT ? true : false;
-        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_HOME) {
-            this.cgramMode = false;
-            this.addr = 0x00;
-            this.shift = 0x00;
-        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_CLEAR) {
-            this.cgramMode = false;
-            this.incrementMode = true;
-            this.addr = 0x00;
-            this.shift = 0x00;
-            this.ddram.fill(32);
-        } else console.warn('Unknown LCD1602 Command', value.toString(16));
-    }
-    processData(value) {
-        // Check RAM type
-        if (this.cgramMode) {
-            // CGRAM
-            const data = (value & 0x01) << 4 | (value & 0x02) << 2 | value & 0x04 | (value & 0x08) >> 2 | (value & 0x10) >> 4;
-            this.cgram[this.addr] = data;
-            this.addr = (this.addr + 1) % 64;
-            this.cgramUpdated = true;
-        } else {
-            // DRAM
-            const mode = this.incrementMode ? 1 : -1;
-            this.ddram[this.addr] = value;
-            this.addr = (this.addr + mode) % 128, this.shiftMode && (this.shift = (this.shift + mode) % 40);
-        }
     }
 }
 
@@ -24203,10 +24449,820 @@ class $2d8917e86023b1fe$export$e1e1654c63a0eb5 {
 
 
 
-// Instances of controllers
-const $382e02c9bbd5d50b$var$buzzerAudio = new (0, $7426626e6f624398$export$a720aa3999bce8b5)();
-const $382e02c9bbd5d50b$var$servoController = new (0, $4a917380f5343f7f$export$bd34b67ff3c6dca7)();
-const $382e02c9bbd5d50b$var$ntcController = new (0, $9cac5ab4c27a7045$export$e0bad4831cb237ba)();
+const $d1559c8c5b32c2bb$var$clamp = (value, min, max)=>Math.min(max, Math.max(min, value));
+const $d1559c8c5b32c2bb$var$address = (el, fallback)=>Number(el.getAttribute('address')) || fallback;
+// ---------------------------------------------------------------- outputs
+const $d1559c8c5b32c2bb$var$led = (el, b)=>{
+    const p = b.pin(el);
+    if (!p) return;
+    const duty = b.duty([
+        p
+    ]);
+    return ()=>{
+        const [d] = duty();
+        el.value = d > 0;
+        el.brightness = d;
+    };
+};
+const $d1559c8c5b32c2bb$var$rgbLed = (el, b)=>{
+    const pins = [
+        'pin-r',
+        'pin-g',
+        'pin-b'
+    ].map((attr)=>b.pin(el, attr));
+    const anode = el.getAttribute('common') !== 'cathode';
+    const lit = (p)=>!!p && (anode ? b.low(p) : b.high(p));
+    const duty = b.duty(pins.filter(Boolean), ()=>pins.map(lit));
+    return ()=>{
+        const [r, g, blue] = duty();
+        el.ledRed = r;
+        el.ledGreen = g;
+        el.ledBlue = blue;
+    };
+};
+const $d1559c8c5b32c2bb$var$barGraph = (el, b)=>{
+    const duty = b.duty(b.pins(el));
+    return ()=>{
+        el.values = duty().map((d)=>d > 0.05 ? 1 : 0);
+    };
+};
+const $d1559c8c5b32c2bb$var$sevenSegment = (el, b)=>{
+    let segments = b.pins(el) // A, B, C, D, E, F, G, DP
+    ;
+    if (segments.length === 1) // legacy: pin="n" maps the segments to bit 0-7 of the port of pin n
+    segments = Array.from({
+        length: 8
+    }, (_, bit)=>({
+            port: segments[0].port,
+            bit: bit
+        }));
+    const digits = b.pins(el, 'pin-digits');
+    const anode = el.getAttribute('common') !== 'cathode';
+    const sample = ()=>{
+        // 8 values per digit, DP stays off if it is not connected
+        const lit = Array.from({
+            length: 8
+        }, (_, i)=>{
+            const p = segments[i];
+            return !!p && (anode ? b.low(p) : b.high(p));
+        });
+        if (!digits.length) return lit;
+        return digits.flatMap((d)=>{
+            const active = anode ? b.high(d) : b.low(d);
+            return lit.map((on)=>on && active);
+        });
+    };
+    const duty = b.duty([
+        ...segments,
+        ...digits
+    ], sample);
+    return ()=>{
+        el.values = duty().map((d)=>d > 0.05 ? 1 : 0);
+    };
+};
+let $d1559c8c5b32c2bb$var$audio;
+function $d1559c8c5b32c2bb$var$speaker(b, volume) {
+    try {
+        const ctx = $d1559c8c5b32c2bb$var$audio = $d1559c8c5b32c2bb$var$audio || new AudioContext();
+        ctx.resume();
+        const oscillator = ctx.createOscillator();
+        const gain = ctx.createGain();
+        oscillator.type = 'square';
+        gain.gain.value = 0;
+        oscillator.connect(gain).connect(ctx.destination);
+        oscillator.start();
+        b.runner.onStop.push(()=>oscillator.stop());
+        return (freq)=>{
+            if (freq) oscillator.frequency.setTargetAtTime(freq, ctx.currentTime, 0.002);
+            gain.gain.setTargetAtTime(freq ? volume : 0, ctx.currentTime, 0.005);
+        };
+    } catch (e) {
+        return ()=>{};
+    }
+}
+const $d1559c8c5b32c2bb$var$buzzer = (el, b)=>{
+    const p = b.pin(el);
+    if (!p) return;
+    let edges = 0;
+    let first = 0;
+    let last = 0;
+    let high = false;
+    b.watch(p, ()=>{
+        if (b.high(p) && !high) {
+            if (!edges++) first = b.cycles;
+            last = b.cycles;
+        }
+        high = b.high(p);
+    });
+    const play = $d1559c8c5b32c2bb$var$speaker(b, 0.1 * b.num(el, 'volume', 1));
+    b.runner.onStop.push(()=>el.hasSignal = false);
+    return ()=>{
+        // a pin held HIGH sounds like an active buzzer, at the frequency attribute
+        const freq = edges > 1 ? (edges - 1) * b.runner.FREQ / (last - first) : b.high(p) ? b.num(el, 'frequency', 1000) : 0;
+        edges = 0;
+        el.hasSignal = freq > 0 || b.high(p);
+        play(freq);
+    };
+};
+function $d1559c8c5b32c2bb$var$neopixels(count, show) {
+    return (el, b)=>{
+        const p = b.pin(el);
+        if (!p) return;
+        const ws2812 = new (0, $2d8917e86023b1fe$export$e1e1654c63a0eb5)(count(el));
+        b.watch(p, ()=>ws2812.feedValue(b.state(p), b.nanos()));
+        return ()=>{
+            const pixels = ws2812.update(b.nanos());
+            if (pixels) show(el, (i)=>({
+                    r: (pixels[i] >> 8 & 0xff) / 255,
+                    g: (pixels[i] >> 16 & 0xff) / 255,
+                    b: (pixels[i] & 0xff) / 255
+                }));
+        };
+    };
+}
+const $d1559c8c5b32c2bb$var$arduino = (el, b)=>{
+    const duty = b.duty(b.parse('13'));
+    el.ledPower = true;
+    return ()=>{
+        el.led13 = duty()[0] > 0;
+        el.ledTX = b.serialActivity;
+    };
+};
+// ---------------------------------------------------------------- switches
+const $d1559c8c5b32c2bb$var$pushbutton = (el, b)=>{
+    let pressed = false;
+    const update = b.contact(b.pin(el), ()=>pressed);
+    b.on(el, 'button-press', ()=>{
+        pressed = true;
+        update();
+    });
+    b.on(el, 'button-release', ()=>{
+        pressed = false;
+        update();
+    });
+};
+const $d1559c8c5b32c2bb$var$slideSwitch = (el, b)=>{
+    // common pin 2 at the Arduino, pin 1 (left) at GND, pin 3 (right) at VCC
+    const p = b.pin(el);
+    if (!p) return;
+    const update = ()=>b.set(p, !!Number(el.value));
+    b.on(el, 'input', update);
+    update();
+};
+const $d1559c8c5b32c2bb$var$dipSwitch = (el, b)=>{
+    const updates = b.pins(el).map((p, i)=>b.contact(p, ()=>!!el.values[i]));
+    b.on(el, 'switch-change', ()=>updates.forEach((update)=>update()));
+};
+const $d1559c8c5b32c2bb$var$tiltSwitch = (el, b)=>{
+    // click to tilt, OUT is HIGH while tilted
+    const p = b.pin(el);
+    let tilted = false;
+    const update = ()=>{
+        el.style.transform = tilted ? 'rotate(-30deg)' : '';
+        if (p) b.set(p, tilted);
+    };
+    b.on(el, 'click', ()=>{
+        tilted = !tilted;
+        update();
+    });
+    b.runner.onStop.push(()=>el.style.transform = '');
+    update();
+};
+const $d1559c8c5b32c2bb$var$pir = (el, b)=>{
+    // click to simulate motion
+    const p = b.pin(el);
+    if (!p) return;
+    b.set(p, false);
+    let active = false;
+    let inhibitUntil = 0;
+    let token = 0;
+    b.on(el, 'click', ()=>{
+        if (active ? el.getAttribute('retrigger') === '0' : b.cycles < inhibitUntil) return;
+        active = true;
+        b.set(p, true);
+        const t = ++token;
+        b.after(b.num(el, 'delayTime', 5) * 1e6, ()=>{
+            if (t !== token) return;
+            active = false;
+            b.set(p, false);
+            inhibitUntil = b.cycles + b.num(el, 'inhibitTime', 1.2) * b.runner.FREQ;
+        });
+    });
+};
+const $d1559c8c5b32c2bb$var$keypad = (el, b)=>{
+    const rows = b.pins(el, 'pin-rows');
+    const cols = b.pins(el, 'pin-cols');
+    const pressed = new Set();
+    // a pressed key connects its row and column wire, an input pin follows a
+    // connected output, otherwise its pull-up
+    const level = (p, connected)=>{
+        let high = b.state(p) === (0, $12dded1feaa73920$export$b745cd59055324b1).InputPullUp;
+        for (const other of connected){
+            const state = b.state(other);
+            if (state === (0, $12dded1feaa73920$export$b745cd59055324b1).Low) return false;
+            if (state === (0, $12dded1feaa73920$export$b745cd59055324b1).High) high = true;
+        }
+        return high;
+    };
+    const update = ()=>{
+        rows.forEach((p, r)=>b.set(p, level(p, cols.filter((_, c)=>pressed.has(`${r},${c}`)))));
+        cols.forEach((p, c)=>b.set(p, level(p, rows.filter((_, r)=>pressed.has(`${r},${c}`)))));
+    };
+    b.watch([
+        ...rows,
+        ...cols
+    ], update);
+    b.on(el, 'button-press', (e)=>{
+        pressed.add(`${e.detail.row},${e.detail.column}`);
+        update();
+    });
+    b.on(el, 'button-release', (e)=>{
+        pressed.delete(`${e.detail.row},${e.detail.column}`);
+        update();
+    });
+    update();
+};
+const $d1559c8c5b32c2bb$var$encoder = (el, b)=>{
+    const clk = b.pin(el, 'pin-clk');
+    const dt = b.pin(el, 'pin-dt');
+    let pressed = false;
+    const sw = b.contact(b.pin(el, 'pin-sw'), ()=>pressed, true);
+    b.on(el, 'button-press', ()=>{
+        pressed = true;
+        sw();
+    });
+    b.on(el, 'button-release', ()=>{
+        pressed = false;
+        sw();
+    });
+    if (!clk || !dt) return;
+    // CLK and DT have pull-ups, clockwise: CLK goes low first, then DT
+    b.set(clk, true);
+    b.set(dt, true);
+    let steps = 0;
+    let busy = false;
+    const step = ()=>{
+        if (busy || !steps) return;
+        busy = true;
+        const [first, second] = steps > 0 ? [
+            clk,
+            dt
+        ] : [
+            dt,
+            clk
+        ];
+        steps -= Math.sign(steps);
+        const edges = [
+            [
+                first,
+                false
+            ],
+            [
+                second,
+                false
+            ],
+            [
+                first,
+                true
+            ],
+            [
+                second,
+                true
+            ]
+        ];
+        const next = (i)=>{
+            if (i === edges.length) {
+                busy = false;
+                return step();
+            }
+            b.set(edges[i][0], edges[i][1]);
+            b.after(1000, ()=>next(i + 1));
+        };
+        next(0);
+    };
+    b.on(el, 'rotate-cw', ()=>{
+        steps++;
+        step();
+    });
+    b.on(el, 'rotate-ccw', ()=>{
+        steps--;
+        step();
+    });
+};
+const $d1559c8c5b32c2bb$var$dialer = (el, b)=>{
+    // DIAL is closed (to GND) while dialing, PULSE opens once per pulse
+    let dialing = false;
+    let pulse = false;
+    const dial = b.contact(b.pin(el, 'pin-dial'), ()=>dialing, true);
+    const pulses = b.contact(b.pin(el, 'pin-pulse'), ()=>!pulse, true);
+    b.on(el, 'dial', (e)=>{
+        const count = e.detail.digit || 10;
+        dialing = true;
+        dial();
+        const next = (i)=>{
+            if (i === 2 * count) {
+                dialing = false;
+                return dial();
+            }
+            pulse = i % 2 === 0;
+            pulses();
+            b.after(pulse ? 60000 : 40000, ()=>next(i + 1)) // 10 pulses per second
+            ;
+        };
+        b.after(100000, ()=>next(0));
+    });
+};
+// ---------------------------------------------------------------- analog
+const $d1559c8c5b32c2bb$var$potentiometer = (el, b)=>{
+    b.analog(b.analogPin(el), ()=>(el.value - el.min) / (el.max - el.min) * 5);
+};
+const $d1559c8c5b32c2bb$var$joystick = (el, b)=>{
+    // VERT: 5V at the top, HORZ: 5V at the left, SEL shorts to GND
+    b.analog(b.pin(el, 'pin-vert'), ()=>(el.yValue + 1) / 2 * 5);
+    b.analog(b.pin(el, 'pin-horz'), ()=>(el.xValue + 1) / 2 * 5);
+    let pressed = false;
+    const sel = b.contact(b.pin(el, 'pin-sel'), ()=>pressed, true);
+    b.on(el, 'button-press', ()=>{
+        pressed = true;
+        sel();
+    });
+    b.on(el, 'button-release', ()=>{
+        pressed = false;
+        sel();
+    });
+};
+const $d1559c8c5b32c2bb$var$photoresistor = (el, b)=>{
+    // LDR in series with 10k, brighter light gives a lower voltage
+    const volts = ()=>{
+        const lux = Math.max(b.num(el, 'lux', 500), 1e-6);
+        const r = b.num(el, 'rl10', 50) * 1e3 * Math.pow(10 / lux, b.num(el, 'gamma', 0.7));
+        return 5 * r / (r + 10000);
+    };
+    b.analog(b.analogPin(el), volts);
+    const dout = b.pin(el, 'pin-do');
+    el.ledPower = true;
+    return ()=>{
+        const dark = volts() > b.num(el, 'threshold', 2.5);
+        if (dout) b.set(dout, dark);
+        el.ledDO = !dark;
+    };
+};
+const $d1559c8c5b32c2bb$var$ntc = (el, b)=>{
+    const p = b.analogPin(el);
+    if (!p) return;
+    // the temperature slider below the circuit sets the attribute
+    const slider = new (0, $c63d65adc8105fd8$export$472062a354075cee)({
+        min: -40,
+        max: 125,
+        value: b.num(el, 'temperature', 24),
+        step: 0.1,
+        unit: "\xb0C",
+        label: `Temperature ${el.getAttribute('pin')}`
+    }, {
+        onValueChange: (value)=>el.setAttribute('temperature', String(value))
+    });
+    slider.appendTo(document.getElementById('sensors') || document.body);
+    b.runner.onStop.push(()=>slider.remove());
+    // 10k NTC in series with 10k, hotter gives a lower voltage
+    b.analog(p, ()=>{
+        const kelvin = b.num(el, 'temperature', 24) + 273.15;
+        const r = Math.exp(b.num(el, 'beta', 3950) * (1 / kelvin - 1 / 298.15));
+        return 5 * r / (r + 1);
+    });
+};
+const $d1559c8c5b32c2bb$var$gasSensor = (el, b)=>{
+    const volts = ()=>$d1559c8c5b32c2bb$var$clamp(b.num(el, 'ppm', 400) / 10000 * 5, 0, 5);
+    b.analog(b.analogPin(el), volts);
+    const dout = b.pin(el, 'pin-do');
+    el.ledPower = true;
+    return ()=>{
+        const alarm = volts() > b.num(el, 'threshold', 4.4);
+        if (dout) b.set(dout, !alarm);
+        el.ledD0 = alarm;
+    };
+};
+/** flame and sound modules: level 0-1023 on AOUT, DOUT goes LOW above threshold */ function $d1559c8c5b32c2bb$var$module(power, signal) {
+    return (el, b)=>{
+        const level = ()=>$d1559c8c5b32c2bb$var$clamp(b.num(el, 'level', 0), 0, 1023);
+        b.analog(b.analogPin(el), ()=>level() * 5 / 1023);
+        const dout = b.pin(el, 'pin-do');
+        el[power] = true;
+        return ()=>{
+            const detected = level() > b.num(el, 'threshold', 512);
+            if (dout) b.set(dout, !detected);
+            el[signal] = detected;
+        };
+    };
+}
+const $d1559c8c5b32c2bb$var$heartBeat = (el, b)=>{
+    b.analog(b.analogPin(el), ()=>{
+        const beats = b.cycles / b.runner.FREQ * (b.num(el, 'bpm', 70) / 60);
+        const phase = beats % 1;
+        return 2.5 + 2 * Math.exp(-Math.pow((phase - 0.2) / 0.03, 2));
+    });
+};
+// ---------------------------------------------------------------- motors
+const $d1559c8c5b32c2bb$var$servo = (el, b)=>{
+    const p = b.pin(el);
+    if (!p) return;
+    let rise = -1;
+    let angle = el.angle;
+    b.watch(p, ()=>{
+        if (b.high(p)) rise = b.cycles;
+        else if (rise >= 0) {
+            const us = (b.cycles - rise) / 16;
+            rise = -1;
+            // Servo library defaults: 544µs → 0°, 2400µs → 180°
+            if (us > 400 && us < 2800) angle = $d1559c8c5b32c2bb$var$clamp((us - 544) / 1856 * 180, 0, 180);
+        }
+    });
+    return ()=>{
+        el.angle = angle;
+    };
+};
+/** decodes the coil currents A-, A+, B+, B- into the angle in degrees */ function $d1559c8c5b32c2bb$var$stepper(b, pins) {
+    if (pins.length < 4) return ()=>0;
+    const [am, ap, bp, bm] = pins;
+    let last = 3 // the rotor rests at step 0 of the Stepper library (1010)
+    ;
+    let halfSteps = 0;
+    let pending = false;
+    const evaluate = ()=>{
+        pending = false;
+        const a = +b.high(ap) - +b.high(am);
+        const c = +b.high(bp) - +b.high(bm);
+        if (!a && !c) return;
+        const phase = Math.round(Math.atan2(c, a) / (Math.PI / 4)) & 7;
+        let delta = last - phase & 7;
+        if (delta > 4) delta -= 8;
+        halfSteps += delta;
+        last = phase;
+    };
+    b.watch(pins, ()=>{
+        // the pins of one step are written one after another, skip the in-between states
+        if (!pending) b.after(50, evaluate);
+        pending = true;
+    });
+    return ()=>halfSteps * 0.9;
+}
+const $d1559c8c5b32c2bb$var$stepperMotor = (el, b)=>{
+    const angle = $d1559c8c5b32c2bb$var$stepper(b, b.pins(el));
+    return ()=>{
+        el.angle = angle();
+    };
+};
+const $d1559c8c5b32c2bb$var$biaxialStepper = (el, b)=>{
+    const outer = $d1559c8c5b32c2bb$var$stepper(b, b.pins(el, 'pin-outer'));
+    const inner = $d1559c8c5b32c2bb$var$stepper(b, b.pins(el, 'pin-inner'));
+    return ()=>{
+        el.outerHandAngle = outer();
+        el.innerHandAngle = inner();
+    };
+};
+// ---------------------------------------------------------------- protocols
+const $d1559c8c5b32c2bb$var$dht22 = (el, b)=>{
+    const p = b.pin(el);
+    if (!p) return;
+    b.set(p, true) // pull-up on the module
+    ;
+    let lowSince = -1;
+    let lowTime = 0;
+    let busy = false;
+    b.watch(p, ()=>{
+        const state = b.state(p);
+        if (state === (0, $12dded1feaa73920$export$b745cd59055324b1).Low) {
+            if (lowSince < 0) lowSince = b.cycles;
+            return;
+        }
+        if (lowSince >= 0) {
+            lowTime = (b.cycles - lowSince) / 16;
+            lowSince = -1;
+        }
+        // start signal: host pulls low for ≥ 1ms, then releases the line
+        if (!busy && lowTime >= 500 && state !== (0, $12dded1feaa73920$export$b745cd59055324b1).High) {
+            lowTime = 0;
+            busy = true;
+            const humidity = Math.round($d1559c8c5b32c2bb$var$clamp(b.num(el, 'humidity', 40), 0, 100) * 10);
+            const t = Math.round(b.num(el, 'temperature', 24) * 10);
+            const temperature = t < 0 ? 0x8000 | -t : t;
+            const bytes = [
+                humidity >> 8,
+                humidity & 0xff,
+                temperature >> 8,
+                temperature & 0xff
+            ];
+            bytes.push(bytes.reduce((sum, x)=>sum + x) & 0xff);
+            const steps = [
+                [
+                    true,
+                    30
+                ],
+                [
+                    false,
+                    80
+                ],
+                [
+                    true,
+                    80
+                ]
+            ];
+            for (const byte of bytes)for(let i = 7; i >= 0; i--)steps.push([
+                false,
+                50
+            ], [
+                true,
+                byte >> i & 1 ? 70 : 26
+            ]);
+            steps.push([
+                false,
+                50
+            ]);
+            b.sequence(p, steps, ()=>{
+                b.set(p, true);
+                busy = false;
+            });
+        }
+    });
+};
+const $d1559c8c5b32c2bb$var$ultrasonic = (el, b)=>{
+    const trig = b.pin(el, 'pin-trig');
+    const echo = b.pin(el, 'pin-echo');
+    if (!trig || !echo) return;
+    b.set(echo, false);
+    let rise = -1;
+    let busy = false;
+    b.watch(trig, ()=>{
+        if (b.high(trig)) rise = b.cycles;
+        else if (rise >= 0) {
+            const us = (b.cycles - rise) / 16;
+            rise = -1;
+            if (us < 8 || busy) return;
+            busy = true;
+            const cm = $d1559c8c5b32c2bb$var$clamp(b.num(el, 'distance', 400), 2, 400);
+            b.sequence(echo, [
+                [
+                    false,
+                    250
+                ],
+                [
+                    true,
+                    cm * 58
+                ],
+                [
+                    false,
+                    0
+                ]
+            ], ()=>busy = false);
+        }
+    });
+};
+const $d1559c8c5b32c2bb$var$hx711 = (el, b)=>{
+    const dout = b.pin(el, 'pin-dt');
+    const sck = b.pin(el, 'pin-sck');
+    if (!dout || !sck) return;
+    b.set(dout, false) // LOW = data ready
+    ;
+    let ready = true;
+    let bit = 0;
+    let value = 0;
+    b.watch(sck, ()=>{
+        if (!b.high(sck) || !ready) return;
+        if (bit === 0) value = Math.round(b.num(el, 'load', 0) * 420) & 0xffffff // 420 per kg
+        ;
+        if (bit < 24) {
+            b.set(dout, !!(value >> 23 - bit & 1)) // MSB first, on the rising edge
+            ;
+            bit++;
+        } else {
+            // 25th pulse: conversion starts, gain pulses 26/27 are ignored
+            bit = 0;
+            ready = false;
+            b.set(dout, true);
+            b.after(12500, ()=>{
+                ready = true;
+                b.set(dout, false);
+            }) // 80 samples per second
+            ;
+        }
+    });
+};
+const $d1559c8c5b32c2bb$var$irReceivers = new WeakMap();
+const $d1559c8c5b32c2bb$var$irReceiver = (el, b)=>{
+    const p = b.pin(el);
+    if (!p) return;
+    b.set(p, true) // idle HIGH, LOW while receiving the 38 kHz carrier
+    ;
+    $d1559c8c5b32c2bb$var$irReceivers.set(b, [
+        ...$d1559c8c5b32c2bb$var$irReceivers.get(b) || [],
+        p
+    ]);
+};
+const $d1559c8c5b32c2bb$var$irRemote = (el, b)=>{
+    b.on(el, 'button-press', (e)=>{
+        // NEC frame, address 0, bytes are sent LSB first
+        const command = e.detail.irCode & 0xff;
+        const steps = [
+            [
+                false,
+                9000
+            ],
+            [
+                true,
+                4500
+            ]
+        ];
+        for (const byte of [
+            0x00,
+            0xff,
+            command,
+            ~command & 0xff
+        ])for(let i = 0; i < 8; i++)steps.push([
+            false,
+            562
+        ], [
+            true,
+            byte >> i & 1 ? 1687 : 562
+        ]);
+        steps.push([
+            false,
+            562
+        ], [
+            true,
+            0
+        ]);
+        for (const p of $d1559c8c5b32c2bb$var$irReceivers.get(b) || [])b.sequence(p, steps);
+    });
+};
+// ---------------------------------------------------------------- I2C & SPI
+const $d1559c8c5b32c2bb$var$ssd1306 = (el, b)=>{
+    const controller = new (0, $151fddc18046f076$export$4e603223a90213cc)(()=>b.millis());
+    const addr = $d1559c8c5b32c2bb$var$address(el, 0);
+    for (const a of addr ? [
+        addr
+    ] : [
+        (0, $151fddc18046f076$export$c1e25f625816cbba),
+        (0, $151fddc18046f076$export$600935ff10924ec1)
+    ])b.i2c.registerDevice(a, controller);
+    return ()=>{
+        if (controller.update()) {
+            controller.toImageData(el.imageData);
+            el.redraw();
+        }
+    };
+};
+const $d1559c8c5b32c2bb$var$lcd = (el, b)=>{
+    const controller = new (0, $ec32cef1cc338d6b$export$d85e7efeead8c33f)(el.cols || 16, el.rows || 2);
+    b.i2c.registerDevice($d1559c8c5b32c2bb$var$address(el, (0, $ec32cef1cc338d6b$export$dd8dc45f6c3d9010)), controller);
+    return ()=>{
+        const lcd = controller.update();
+        if (!lcd) return;
+        el.characters = lcd.characters;
+        el.backlight = lcd.backlight;
+        el.cursor = lcd.cursor;
+        el.blink = lcd.blink;
+        el.cursorX = lcd.cursorX;
+        el.cursorY = lcd.cursorY;
+        if (lcd.cgramUpdated) {
+            const font = el.font.slice(0);
+            font.set(controller.cgram, 0);
+            font.set(controller.cgram, 0x40);
+            el.font = font;
+        }
+    };
+};
+const $d1559c8c5b32c2bb$var$ds1307 = (el, b)=>{
+    const controller = new (0, $497caf50a54906b7$export$fba8eb9ee18edd0a)(()=>b.millis(), el.getAttribute('initTime'));
+    b.i2c.registerDevice($d1559c8c5b32c2bb$var$address(el, (0, $497caf50a54906b7$export$fdcc7c6a4074abc4)), controller);
+};
+const $d1559c8c5b32c2bb$var$mpu6050 = (el, b)=>{
+    const controller = new (0, $09c6690ef6b478a3$export$c9533601316bfd33)(()=>({
+            accel: [
+                b.num(el, 'accelX', 0),
+                b.num(el, 'accelY', 0),
+                b.num(el, 'accelZ', 1)
+            ],
+            gyro: [
+                b.num(el, 'rotationX', 0),
+                b.num(el, 'rotationY', 0),
+                b.num(el, 'rotationZ', 0)
+            ],
+            temperature: b.num(el, 'temperature', 24)
+        }));
+    b.i2c.registerDevice($d1559c8c5b32c2bb$var$address(el, (0, $09c6690ef6b478a3$export$c2e01cb18b7c9e44)), controller);
+    el.led1 = true;
+};
+const $d1559c8c5b32c2bb$var$ili9341 = (el, b)=>{
+    const dc = b.pin(el, 'pin-dc') || b.parse('9')[0];
+    const cs = b.pin(el, 'pin-cs') || b.parse('10')[0];
+    const controller = new (0, $2d6661bb146578fe$export$7e2e2133bf3de85f)(()=>b.high(dc));
+    b.spi(cs, controller);
+    return ()=>{
+        const canvas = el.canvas;
+        if (canvas && controller.dirty) {
+            controller.dirty = false;
+            canvas.getContext('2d')?.putImageData(controller.image, 0, 0);
+        }
+    };
+};
+const $d1559c8c5b32c2bb$var$sdCard = (el, b)=>{
+    b.spi(b.pin(el, 'pin-cs') || b.parse('10')[0], new (0, $ccb0d1c87c771c74$export$98861c6bdb42fdbf)());
+};
+const $d1559c8c5b32c2bb$export$6e2410c1d27f06e7 = {
+    'wokwi-led': $d1559c8c5b32c2bb$var$led,
+    'wokwi-rgb-led': $d1559c8c5b32c2bb$var$rgbLed,
+    'wokwi-led-bar-graph': $d1559c8c5b32c2bb$var$barGraph,
+    'wokwi-7segment': $d1559c8c5b32c2bb$var$sevenSegment,
+    'wokwi-buzzer': $d1559c8c5b32c2bb$var$buzzer,
+    'wokwi-neopixel': $d1559c8c5b32c2bb$var$neopixels(()=>1, (el, color)=>Object.assign(el, color(0))),
+    'wokwi-led-ring': $d1559c8c5b32c2bb$var$neopixels((el)=>el.pixels, (el, color)=>{
+        for(let i = 0; i < el.pixels; i++)el.setPixel(i, color(i));
+    }),
+    'wokwi-neopixel-matrix': $d1559c8c5b32c2bb$var$neopixels((el)=>el.rows * el.cols, (el, color)=>{
+        for(let row = 0; row < el.rows; row++)for(let col = 0; col < el.cols; col++)el.setPixel(row, col, color(row * el.cols + col));
+    }),
+    'wokwi-arduino-uno': $d1559c8c5b32c2bb$var$arduino,
+    'wokwi-arduino-nano': $d1559c8c5b32c2bb$var$arduino,
+    'wokwi-pushbutton': $d1559c8c5b32c2bb$var$pushbutton,
+    'wokwi-pushbutton-6mm': $d1559c8c5b32c2bb$var$pushbutton,
+    'wokwi-slide-switch': $d1559c8c5b32c2bb$var$slideSwitch,
+    'wokwi-dip-switch-8': $d1559c8c5b32c2bb$var$dipSwitch,
+    'wokwi-tilt-switch': $d1559c8c5b32c2bb$var$tiltSwitch,
+    'wokwi-pir-motion-sensor': $d1559c8c5b32c2bb$var$pir,
+    'wokwi-membrane-keypad': $d1559c8c5b32c2bb$var$keypad,
+    'wokwi-ky-040': $d1559c8c5b32c2bb$var$encoder,
+    'wokwi-rotary-dialer': $d1559c8c5b32c2bb$var$dialer,
+    'wokwi-potentiometer': $d1559c8c5b32c2bb$var$potentiometer,
+    'wokwi-slide-potentiometer': $d1559c8c5b32c2bb$var$potentiometer,
+    'wokwi-analog-joystick': $d1559c8c5b32c2bb$var$joystick,
+    'wokwi-photoresistor-sensor': $d1559c8c5b32c2bb$var$photoresistor,
+    'wokwi-ntc-temperature-sensor': $d1559c8c5b32c2bb$var$ntc,
+    'wokwi-gas-sensor': $d1559c8c5b32c2bb$var$gasSensor,
+    'wokwi-flame-sensor': $d1559c8c5b32c2bb$var$module('ledPower', 'ledSignal'),
+    'wokwi-small-sound-sensor': $d1559c8c5b32c2bb$var$module('ledPower', 'ledSignal'),
+    'wokwi-big-sound-sensor': $d1559c8c5b32c2bb$var$module('led1', 'led2'),
+    'wokwi-heart-beat-sensor': $d1559c8c5b32c2bb$var$heartBeat,
+    'wokwi-servo': $d1559c8c5b32c2bb$var$servo,
+    'wokwi-stepper-motor': $d1559c8c5b32c2bb$var$stepperMotor,
+    'wokwi-biaxial-stepper': $d1559c8c5b32c2bb$var$biaxialStepper,
+    'wokwi-dht22': $d1559c8c5b32c2bb$var$dht22,
+    'wokwi-hc-sr04': $d1559c8c5b32c2bb$var$ultrasonic,
+    'wokwi-hx711': $d1559c8c5b32c2bb$var$hx711,
+    'wokwi-ir-receiver': $d1559c8c5b32c2bb$var$irReceiver,
+    'wokwi-ir-remote': $d1559c8c5b32c2bb$var$irRemote,
+    'wokwi-ssd1306': $d1559c8c5b32c2bb$var$ssd1306,
+    'wokwi-lcd1602': $d1559c8c5b32c2bb$var$lcd,
+    'wokwi-lcd2004': $d1559c8c5b32c2bb$var$lcd,
+    'wokwi-ds1307': $d1559c8c5b32c2bb$var$ds1307,
+    'wokwi-mpu6050': $d1559c8c5b32c2bb$var$mpu6050,
+    'wokwi-ili9341': $d1559c8c5b32c2bb$var$ili9341,
+    'wokwi-microsd-card': $d1559c8c5b32c2bb$var$sdCard
+};
+
+
+function $156f50b496497e4c$var$zeroPad(value, length) {
+    let sval = value.toString();
+    while(sval.length < length)sval = '0' + sval;
+    return sval;
+}
+function $156f50b496497e4c$export$3203edd9e5edd663(seconds) {
+    const ms = Math.floor(seconds * 1000) % 1000;
+    const secs = Math.floor(seconds % 60);
+    const mins = Math.floor(seconds / 60);
+    return `${$156f50b496497e4c$var$zeroPad(mins, 2)}:${$156f50b496497e4c$var$zeroPad(secs, 2)}.${$156f50b496497e4c$var$zeroPad(ms, 3)}`;
+}
+
+
+class $86959eedeb15e50e$export$c3b37e94fdf214dd {
+    constructor(cpu, MHZ){
+        this.cpu = cpu;
+        this.MHZ = MHZ;
+        this.prevTime = 0;
+        this.prevCycles = 0;
+        this.samples = new Float32Array(64);
+        this.sampleIndex = 0;
+    }
+    reset() {
+        this.prevTime = 0;
+        this.prevCycles = 0;
+        this.sampleIndex = 0;
+    }
+    update() {
+        if (this.prevTime) {
+            const delta = performance.now() - this.prevTime;
+            const deltaCycles = this.cpu.cycles - this.prevCycles;
+            const deltaCpuMillis = 1000 * (deltaCycles / this.MHZ);
+            const factor = deltaCpuMillis / delta;
+            if (!this.sampleIndex) this.samples.fill(factor);
+            this.samples[this.sampleIndex++ % this.samples.length] = factor;
+        }
+        this.prevCycles = this.cpu.cycles;
+        this.prevTime = performance.now();
+        const avg = this.samples.reduce((x, y)=>x + y) / this.samples.length;
+        return avg;
+    }
+}
+
+
 // Arduino libraries that hexi.wokwi.com only installs when libraries.txt lists them
 const $382e02c9bbd5d50b$var$LIBRARIES = {
     'Adafruit_SSD1306.h': 'Adafruit SSD1306',
@@ -24263,211 +25319,31 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         }
     },
     execute: function(hex, log, id) {
-        const PORTS = [
-            'B',
-            'C',
-            'D'
-        ];
-        const cpuNanos = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000000000);
-        const container = document.getElementById(id) || document;
-        const LEDs = Array.from(container?.querySelectorAll('wokwi-led') || []);
-        const SEG7 = Array.from(container?.querySelectorAll('wokwi-7segment') || []);
-        const BUZZER = Array.from(container?.querySelectorAll('wokwi-buzzer') || []);
-        const SERVO = Array.from(container?.querySelectorAll('wokwi-servo') || []);
-        const PushButton = Array.from(container?.querySelectorAll('wokwi-pushbutton') || []);
-        const PotentiometerElement = Array.from(container?.querySelectorAll('wokwi-potentiometer') || []);
-        const NeoMatrix = Array.from(container?.querySelectorAll('wokwi-neopixel-matrix') || []);
-        const NeoMatrixController = [];
-        NeoMatrix.forEach((matrix)=>{
-            NeoMatrixController.push(new (0, $2d8917e86023b1fe$export$e1e1654c63a0eb5)(matrix.cols * matrix.rows));
-        });
-        // Set up the SSD1306
-        const SSD1306 = container?.querySelector('wokwi-ssd1306') || null;
-        const lcd1602 = container?.querySelector('wokwi-lcd1602') || null;
-        const ds1307 = container?.querySelector('wokwi-ds1307') || null;
-        const NTCSensors = Array.from(container?.querySelectorAll('wokwi-ntc-temperature-sensor') || []);
+        const container = id && document.getElementById(id) || document;
         const runner = new (0, $4edadc2b5de6ce07$export$31e2b2d64952a5f1)(hex);
-        // removes this run's listeners from the circuit when the run stops
-        const listeners = new AbortController();
-        for (const PORT of PORTS){
-            // Hook to PORTB register
-            const port = runner.port.get(PORT);
-            if (port) {
-                PushButton.forEach((button)=>{
-                    const [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(button);
-                    if (typeof pin === 'number' && p === PORT) {
-                        let pressed = false;
-                        // Like a real button: with INPUT_PULLUP it connects the pin to GND
-                        // (pressed reads LOW), with INPUT it connects it to VCC against a
-                        // pull-down resistor (pressed reads HIGH). The sketch sets the
-                        // mode after wiring, so the port listener re-checks it.
-                        const update = ()=>{
-                            const pullup = port.pinState(pin) === (0, $12dded1feaa73920$export$b745cd59055324b1).InputPullUp;
-                            port.setPin(pin, pressed !== pullup);
-                        };
-                        port.addListener(update);
-                        update();
-                        button.addEventListener('button-press', ()=>{
-                            pressed = true;
-                            update();
-                        }, {
-                            signal: listeners.signal
-                        });
-                        button.addEventListener('button-release', ()=>{
-                            pressed = false;
-                            update();
-                        }, {
-                            signal: listeners.signal
-                        });
-                    }
-                });
-                port.addListener((value)=>{
-                    LEDs.forEach((e)=>{
-                        let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(e);
-                        if (typeof pin === 'number' && p === PORT) e.value = runner.port.get(p)?.pinState(pin) === (0, $12dded1feaa73920$export$b745cd59055324b1).High;
-                    });
-                    BUZZER.forEach((e)=>{
-                        let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(e);
-                        if (typeof pin === 'number' && p === PORT) {
-                            const pinState = runner.port.get(p)?.pinState(pin);
-                            const hasSignal = pinState === (0, $12dded1feaa73920$export$b745cd59055324b1).High;
-                            e.hasSignal = hasSignal;
-                            // Generate audio for buzzer
-                            if (hasSignal) {
-                                const frequency = e.getAttribute('frequency') || '1000';
-                                $382e02c9bbd5d50b$var$buzzerAudio.startTone(e, parseInt(frequency, 10));
-                            } else $382e02c9bbd5d50b$var$buzzerAudio.stopTone(e);
-                        }
-                    });
-                    SERVO.forEach((e)=>{
-                        let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(e);
-                        if (typeof pin === 'number' && p === PORT) {
-                            const pinState = runner.port.get(p)?.pinState(pin);
-                            const pinHigh = pinState === (0, $12dded1feaa73920$export$b745cd59055324b1).High;
-                            const currentTime = cpuNanos() / 1000 // Convert to microseconds
-                            ;
-                            $382e02c9bbd5d50b$var$servoController.updateServo(e, pinHigh, currentTime);
-                        }
-                    });
-                    SEG7.forEach((e)=>{
-                        let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(e);
-                        if (typeof pin === 'number' && p === PORT) // port bits 0–7 drive segments A, B, C, D, E, F, G, DP
-                        e.values = Array.from({
-                            length: 8
-                        }, (_, i)=>value >> i & 1);
-                    });
-                    for(let i = 0; i < NeoMatrix.length; i++){
-                        let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(NeoMatrix[i]);
-                        if (typeof pin === 'number' && p === PORT) NeoMatrixController[i]?.feedValue(// @ts-ignore
-                        runner.port.get(p)?.pinState(pin), cpuNanos());
-                    }
-                });
-            }
-        }
-        // Analog inputs feed the ADC directly, independent of the port registers
-        PotentiometerElement.forEach((e)=>{
-            const channel = (0, $d6081ff883bc8055$export$78e45a2b028eb519)(e);
-            if (channel === null) return;
-            e.oninput = (event)=>{
-                runner.adc.channelValues[channel] = event.detail * 5 / 1023;
-            };
-            runner.adc.channelValues[channel] = e.value * 5 / 1023;
+        // every part of the circuit wires itself to the board, see parts.ts
+        const board = new (0, $df8554ab86fe4a7d$export$dc537a3a3893548e)(runner);
+        const frames = [];
+        for (const [tag, attach] of Object.entries((0, $d1559c8c5b32c2bb$export$6e2410c1d27f06e7)))container.querySelectorAll(tag).forEach((el)=>{
+            const frame = attach(el, board);
+            if (frame) frames.push(frame);
         });
-        NTCSensors.forEach((sensor)=>{
-            if ((0, $d6081ff883bc8055$export$78e45a2b028eb519)(sensor) !== null) $382e02c9bbd5d50b$var$ntcController.initializeSensor(sensor, runner);
-        });
-        // Serial port output support
         runner.usart.onByteTransmit = (value)=>{
+            board.serialActivity = true;
             log(String.fromCharCode(value));
         };
-        let ssd1306Controller = null;
-        let lcd1602Controller = null;
-        let ds1307Controller = null;
-        // Set up I2C bus and devices
-        const cpuMillis = ()=>Math.round(runner.cpu.cycles / runner.FREQ * 1000);
-        let i2cBus = null;
-        // Initialize I2C bus if any I2C devices are present
-        if (SSD1306 || lcd1602 || ds1307) {
-            i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
-            if (SSD1306) {
-                ssd1306Controller = new (0, $151fddc18046f076$export$4e603223a90213cc)(cpuMillis);
-                i2cBus.registerDevice(0x3d, ssd1306Controller);
-            }
-            if (lcd1602) {
-                lcd1602Controller = new (0, $ec32cef1cc338d6b$export$c3787bd0c90a66b8)(cpuMillis);
-                i2cBus.registerDevice((0, $ec32cef1cc338d6b$export$dd8dc45f6c3d9010), lcd1602Controller);
-            }
-            if (ds1307) {
-                ds1307Controller = new (0, $497caf50a54906b7$export$fba8eb9ee18edd0a)(cpuMillis);
-                i2cBus.registerDevice((0, $497caf50a54906b7$export$fdcc7c6a4074abc4), ds1307Controller);
-            }
-        }
-        const timeSpan = container?.querySelector('#simulation-time');
+        const timeSpan = container.querySelector('#simulation-time');
         const cpuPerf = new (0, $86959eedeb15e50e$export$c3b37e94fdf214dd)(runner.cpu, runner.FREQ);
         runner.execute((cpu)=>{
-            const time = (0, $156f50b496497e4c$export$3203edd9e5edd663)(cpu.cycles / runner.FREQ);
-            const speed = (cpuPerf.update() * 100).toFixed(0);
-            if (timeSpan) timeSpan.textContent = `Simulation time: ${time} (${speed}%)`;
-            if (SSD1306 && ssd1306Controller) {
-                const frame = ssd1306Controller.update();
-                if (frame) {
-                    ssd1306Controller.toImageData(SSD1306.imageData);
-                    SSD1306.redraw();
-                }
-            }
-            if (lcd1602 && lcd1602Controller) {
-                const lcd = lcd1602Controller.update();
-                // Check component
-                if (lcd) {
-                    // Update LCD1602
-                    lcd1602.blink = lcd.blink;
-                    lcd1602.cursor = lcd.cursor;
-                    lcd1602.cursorX = lcd.cursorX;
-                    lcd1602.cursorY = lcd.cursorY;
-                    lcd1602.characters = lcd.characters;
-                    lcd1602.backlight = lcd.backlight;
-                    // Check custom character
-                    if (lcd.cgramUpdated) {
-                        const font = lcd1602.font.slice(0);
-                        const cgramChars = lcd.cgram.slice(0, 0x40);
-                        // Set character
-                        font.set(cgramChars, 0);
-                        font.set(cgramChars, 0x40);
-                        // Get character
-                        lcd1602.font = font;
-                    }
-                }
-            }
-            for(let i = 0; i < NeoMatrix.length; i++){
-                let pixels = NeoMatrixController[i]?.update(cpuNanos());
-                if (pixels) {
-                    for(let row = 0; row < NeoMatrix[i].rows; row++)for(let col = 0; col < NeoMatrix[i].cols; col++){
-                        const value = pixels[row * NeoMatrix[i].cols + col];
-                        NeoMatrix[i].setPixel(row, col, {
-                            b: (value & 0xff) / 255,
-                            r: (value >> 8 & 0xff) / 255,
-                            g: (value >> 16 & 0xff) / 255
-                        });
-                    }
-                }
+            board.frame();
+            frames.forEach((frame)=>frame());
+            board.serialActivity = false;
+            if (timeSpan) {
+                const time = (0, $156f50b496497e4c$export$3203edd9e5edd663)(cpu.cycles / runner.FREQ);
+                const speed = (cpuPerf.update() * 100).toFixed(0);
+                timeSpan.textContent = `Simulation time: ${time} (${speed}%)`;
             }
         });
-        // Clean up buzzer audio and visual state when runner stops
-        const originalStop = runner.stop.bind(runner);
-        runner.stop = ()=>{
-            listeners.abort();
-            $382e02c9bbd5d50b$var$buzzerAudio.stopAllTones();
-            $382e02c9bbd5d50b$var$servoController.resetAllServos();
-            $382e02c9bbd5d50b$var$ntcController.cleanup();
-            BUZZER.forEach((e)=>{
-                e.hasSignal = false;
-            });
-            SERVO.forEach((e)=>{
-                e.angle = 90 // Reset to center position
-                ;
-            });
-            originalStop();
-        };
         return runner;
     }
 };

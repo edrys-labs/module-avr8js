@@ -1,42 +1,11 @@
 import '@wokwi/elements'
-import { AVRRunner, PORT } from './execute'
+import { AVRRunner } from './execute'
+import { Board } from './board'
+import { parts } from './parts'
 import { formatTime } from './format-time'
-import { adcChannel, pinPort } from './pins'
 import { CPUPerformance } from './cpu-performance'
-import { PinState } from 'avr8js'
-import { I2CBus } from './i2c-bus'
-import { 
-  BuzzerAudio, 
-  ServoController, 
-  DS1307Controller, 
-  DS1307_ADDR, 
-  NTCTemperatureSensorController,
-  LCD1602Controller,
-  LCD1602_ADDR,
-  SSD1306Controller,
-  WS2812Controller,
-} from './controllers'
-
-import {
-  BuzzerElement,
-  LEDElement,
-  NeopixelMatrixElement,
-  PushbuttonElement,
-  SevenSegmentElement,
-  SSD1306Element,
-  LCD1602Element,
-  PotentiometerElement,
-  ServoElement,
-  Ds1307Element,
-  NTCTemperatureSensorElement,
-} from '@wokwi/elements'
 
 declare const window: any
-
-// Instances of controllers
-const buzzerAudio = new BuzzerAudio()
-const servoController = new ServoController()
-const ntcController = new NTCTemperatureSensorController()
 
 // Arduino libraries that hexi.wokwi.com only installs when libraries.txt lists them
 const LIBRARIES: { [header: string]: string } = {
@@ -109,305 +78,40 @@ const AVR8js = {
     }
   },
 
-  execute: function (hex: string, log: any, id: string) {
-    const PORTS: Array<PORT> = ['B', 'C', 'D']
-
-    const cpuNanos = () => Math.round((runner.cpu.cycles / runner.FREQ) * 1000000000)
-
-    const container = document.getElementById(id) || document
-
-    const LEDs: Array<LEDElement & HTMLElement> = Array.from(
-      container?.querySelectorAll('wokwi-led') || []
-    )
-    const SEG7: Array<SevenSegmentElement & HTMLElement> = Array.from(
-      container?.querySelectorAll<SevenSegmentElement & HTMLElement>(
-        'wokwi-7segment'
-      ) || []
-    )
-    const BUZZER: Array<BuzzerElement & HTMLElement> = Array.from(
-      container?.querySelectorAll<BuzzerElement & HTMLElement>(
-        'wokwi-buzzer'
-      ) || []
-    )
-
-    const SERVO: Array<ServoElement & HTMLElement> = Array.from(
-      container?.querySelectorAll<ServoElement & HTMLElement>(
-        'wokwi-servo'
-      ) || []
-    )
-
-    const PushButton: Array<PushbuttonElement & HTMLElement> = Array.from(
-      container?.querySelectorAll<PushbuttonElement & HTMLElement>(
-        'wokwi-pushbutton'
-      ) || []
-    )
-
-    const PotentiometerElement: Array<PotentiometerElement & HTMLElement> =
-      Array.from(
-        container?.querySelectorAll<PotentiometerElement & HTMLElement>(
-          'wokwi-potentiometer'
-        ) || []
-      )
-
-    const NeoMatrix: Array<NeopixelMatrixElement & HTMLElement> = Array.from(
-      container?.querySelectorAll<NeopixelMatrixElement & HTMLElement>(
-        'wokwi-neopixel-matrix'
-      ) || []
-    )
-
-    const NeoMatrixController: WS2812Controller[] = []
-    NeoMatrix.forEach((matrix) => {
-      NeoMatrixController.push(new WS2812Controller(matrix.cols * matrix.rows))
-    })
-
-    // Set up the SSD1306
-    const SSD1306 =
-      container?.querySelector<SSD1306Element & HTMLElement>('wokwi-ssd1306') ||
-      null
-
-    const lcd1602 =
-      container?.querySelector<LCD1602Element>('wokwi-lcd1602') || null
-
-    const ds1307 =
-      container?.querySelector<Ds1307Element & HTMLElement>('wokwi-ds1307') || null
-
-    const NTCSensors: Array<NTCTemperatureSensorElement & HTMLElement> = Array.from(
-      container?.querySelectorAll<NTCTemperatureSensorElement & HTMLElement>(
-        'wokwi-ntc-temperature-sensor'
-      ) || []
-    )
+  execute: function (hex: string, log: (text: string) => void, id?: string) {
+    const container = (id && document.getElementById(id)) || document
 
     const runner = new AVRRunner(hex)
-    // removes this run's listeners from the circuit when the run stops
-    const listeners = new AbortController()
 
-    for (const PORT of PORTS) {
-      // Hook to PORTB register
-      const port = runner.port.get(PORT)
-
-      if (port) {
-        PushButton.forEach((button) => {
-          const [pin, p] = pinPort(button)
-
-          if (typeof pin === 'number' && p === PORT) {
-            let pressed = false
-
-            // Like a real button: with INPUT_PULLUP it connects the pin to GND
-            // (pressed reads LOW), with INPUT it connects it to VCC against a
-            // pull-down resistor (pressed reads HIGH). The sketch sets the
-            // mode after wiring, so the port listener re-checks it.
-            const update = () => {
-              const pullup = port.pinState(pin) === PinState.InputPullUp
-              port.setPin(pin, pressed !== pullup)
-            }
-            port.addListener(update)
-            update()
-
-            button.addEventListener('button-press', () => {
-              pressed = true
-              update()
-            }, { signal: listeners.signal })
-
-            button.addEventListener('button-release', () => {
-              pressed = false
-              update()
-            }, { signal: listeners.signal })
-          }
-        })
-
-        port.addListener((value) => {
-          LEDs.forEach((e) => {
-            let [pin, p] = pinPort(e)
-
-            if (typeof pin === 'number' && p === PORT) {
-              e.value = runner.port.get(p)?.pinState(pin) === PinState.High
-            }
-          })
-
-          BUZZER.forEach((e) => {
-            let [pin, p] = pinPort(e)
-
-            if (typeof pin === 'number' && p === PORT) {
-              const pinState = runner.port.get(p)?.pinState(pin)
-              const hasSignal = pinState === PinState.High
-              e.hasSignal = hasSignal
-              
-              // Generate audio for buzzer
-              if (hasSignal) {
-                const frequency = e.getAttribute('frequency') || '1000'
-                buzzerAudio.startTone(e, parseInt(frequency, 10))
-              } else {
-                buzzerAudio.stopTone(e)
-              }
-            }
-          })
-
-          SERVO.forEach((e) => {
-            let [pin, p] = pinPort(e)
-
-            if (typeof pin === 'number' && p === PORT) {
-              const pinState = runner.port.get(p)?.pinState(pin)
-              const pinHigh = pinState === PinState.High
-              const currentTime = cpuNanos() / 1000 // Convert to microseconds
-              
-              servoController.updateServo(e, pinHigh, currentTime)
-            }
-          })
-
-          SEG7.forEach((e) => {
-            let [pin, p] = pinPort(e)
-
-            if (typeof pin === 'number' && p === PORT) {
-              // port bits 0–7 drive segments A, B, C, D, E, F, G, DP
-              e.values = Array.from({ length: 8 }, (_, i) => (value >> i) & 1)
-            }
-          })
-
-          for (let i = 0; i < NeoMatrix.length; i++) {
-            let [pin, p] = pinPort(NeoMatrix[i])
-
-            if (typeof pin === 'number' && p === PORT) {
-              NeoMatrixController[i]?.feedValue(
-                // @ts-ignore
-                runner.port.get(p)?.pinState(pin),
-                cpuNanos()
-              )
-            }
-          }
-        })
-      }
+    // every part of the circuit wires itself to the board, see parts.ts
+    const board = new Board(runner)
+    const frames: Array<() => void> = []
+    for (const [tag, attach] of Object.entries(parts)) {
+      container.querySelectorAll(tag).forEach((el) => {
+        const frame = attach(el, board)
+        if (frame) frames.push(frame)
+      })
     }
 
-    // Analog inputs feed the ADC directly, independent of the port registers
-    PotentiometerElement.forEach((e) => {
-      const channel = adcChannel(e)
-      if (channel === null) return
-
-      e.oninput = (event: any) => {
-        runner.adc.channelValues[channel] = (event.detail * 5) / 1023
-      }
-      runner.adc.channelValues[channel] = (e.value * 5) / 1023
-    })
-
-    NTCSensors.forEach((sensor) => {
-      if (adcChannel(sensor) !== null) {
-        ntcController.initializeSensor(sensor, runner)
-      }
-    })
-
-    // Serial port output support
     runner.usart.onByteTransmit = (value) => {
+      board.serialActivity = true
       log(String.fromCharCode(value))
     }
 
-    let ssd1306Controller: SSD1306Controller | null = null
-    let lcd1602Controller: LCD1602Controller | null = null
-    let ds1307Controller: DS1307Controller | null = null
-
-    // Set up I2C bus and devices
-    const cpuMillis = () =>
-      Math.round((runner.cpu.cycles / runner.FREQ) * 1000)
-    
-    let i2cBus: I2CBus | null = null
-    
-    // Initialize I2C bus if any I2C devices are present
-    if (SSD1306 || lcd1602 || ds1307) {
-      i2cBus = new I2CBus(runner.twi)
-      
-      if (SSD1306) {
-        ssd1306Controller = new SSD1306Controller(cpuMillis)
-        i2cBus.registerDevice(0x3d, ssd1306Controller)
-      }
-      
-      if (lcd1602) {
-        lcd1602Controller = new LCD1602Controller(cpuMillis)
-        i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller)
-      }
-      
-      if (ds1307) {
-        ds1307Controller = new DS1307Controller(cpuMillis)
-        i2cBus.registerDevice(DS1307_ADDR, ds1307Controller)
-      }
-    }
-
-    const timeSpan = container?.querySelector('#simulation-time')
-
+    const timeSpan = container.querySelector('#simulation-time')
     const cpuPerf = new CPUPerformance(runner.cpu, runner.FREQ)
 
     runner.execute((cpu) => {
-      const time = formatTime(cpu.cycles / runner.FREQ)
-      const speed = (cpuPerf.update() * 100).toFixed(0)
-      if (timeSpan)
+      board.frame()
+      frames.forEach((frame) => frame())
+      board.serialActivity = false
+
+      if (timeSpan) {
+        const time = formatTime(cpu.cycles / runner.FREQ)
+        const speed = (cpuPerf.update() * 100).toFixed(0)
         timeSpan.textContent = `Simulation time: ${time} (${speed}%)`
-
-      if (SSD1306 && ssd1306Controller) {
-        const frame = ssd1306Controller.update()
-        if (frame) {
-          ssd1306Controller.toImageData(SSD1306.imageData)
-          SSD1306.redraw()
-        }
-      }
-
-      if (lcd1602 && lcd1602Controller) {
-        const lcd = lcd1602Controller.update()
-        // Check component
-        if (lcd) {
-          // Update LCD1602
-          lcd1602.blink = lcd.blink
-          lcd1602.cursor = lcd.cursor
-          lcd1602.cursorX = lcd.cursorX
-          lcd1602.cursorY = lcd.cursorY
-          lcd1602.characters = lcd.characters
-          lcd1602.backlight = lcd.backlight
-
-          // Check custom character
-          if (lcd.cgramUpdated) {
-            const font = lcd1602.font.slice(0)
-            const cgramChars = lcd.cgram.slice(0, 0x40)
-
-            // Set character
-            font.set(cgramChars, 0)
-            font.set(cgramChars, 0x40)
-
-            // Get character
-            lcd1602.font = font
-          }
-        }
-      }
-
-      for (let i = 0; i < NeoMatrix.length; i++) {
-        let pixels = NeoMatrixController[i]?.update(cpuNanos())
-
-        if (pixels) {
-          for (let row = 0; row < NeoMatrix[i].rows; row++) {
-            for (let col = 0; col < NeoMatrix[i].cols; col++) {
-              const value = pixels[row * NeoMatrix[i].cols + col]
-              NeoMatrix[i].setPixel(row, col, {
-                b: (value & 0xff) / 255,
-                r: ((value >> 8) & 0xff) / 255,
-                g: ((value >> 16) & 0xff) / 255,
-              })
-            }
-          }
-        }
       }
     })
-
-    // Clean up buzzer audio and visual state when runner stops
-    const originalStop = runner.stop.bind(runner)
-    runner.stop = () => {
-      listeners.abort()
-      buzzerAudio.stopAllTones()
-      servoController.resetAllServos()
-      ntcController.cleanup()
-      BUZZER.forEach((e) => {
-        e.hasSignal = false
-      })
-      SERVO.forEach((e) => {
-        e.angle = 90 // Reset to center position
-      })
-      originalStop()
-    }
 
     return runner
   },
