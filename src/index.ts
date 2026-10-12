@@ -4,16 +4,17 @@ import { formatTime } from './format-time'
 import { adcChannel, pinPort } from './pins'
 import { CPUPerformance } from './cpu-performance'
 import { PinState } from 'avr8js'
-import { WS2812Controller } from './ws2812'
 import { I2CBus } from './i2c-bus'
-import { SSD1306Controller } from './ssd1306'
-import { LCD1602Controller, LCD1602_ADDR } from './lcd1602'
 import { 
   BuzzerAudio, 
   ServoController, 
   DS1307Controller, 
   DS1307_ADDR, 
-  NTCTemperatureSensorController 
+  NTCTemperatureSensorController,
+  LCD1602Controller,
+  LCD1602_ADDR,
+  SSD1306Controller,
+  WS2812Controller,
 } from './controllers'
 
 import {

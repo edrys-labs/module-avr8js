@@ -28,8 +28,189 @@
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/water.min.css">
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css">
 
-    <!-- sets window.AVR8js -->
-    <script defer="" type="module">/* eslint-disable @typescript-eslint/no-namespace */ /* eslint-disable @typescript-eslint/no-unused-vars */ 
+    <!-- inline tags, so parcel bundles everything into one docs/index.html -->
+    <style>:root {
+  --terminal-background: #fff;
+  --terminal-border: #0003;
+  --terminal-text: #2b2b2b;
+  --terminal-error: #b8384a;
+  --terminal-scrollbar: #c8c8c8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --terminal-background: #1a1b26;
+    --terminal-border: #1a1b26;
+    --terminal-text: #c0caf5;
+    --terminal-error: #f7768e;
+    --terminal-scrollbar: #414868;
+  }
+}
+
+body {
+  box-sizing: border-box;
+  flex-direction: column;
+  max-width: none;
+  height: 100vh;
+  margin: 0;
+  padding: 1rem .5rem .5rem;
+  display: flex;
+}
+
+#header {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem 1rem;
+  margin-bottom: .5rem;
+  display: flex;
+}
+
+.title {
+  font-size: 1.4em;
+  line-height: 1;
+}
+
+.status {
+  font-size: small;
+}
+
+.status > .label {
+  opacity: .7;
+}
+
+.status .badge {
+  color: #fff;
+  border-radius: 999px;
+  padding: .1rem .5rem;
+  font-weight: bold;
+  display: inline-block;
+}
+
+.status .badge.on {
+  background-color: #1f7a45;
+}
+
+.status .badge.off {
+  background-color: #b8384a;
+}
+
+.status .badge.wait {
+  background-color: #6b6b6b;
+}
+
+.controls {
+  margin-left: auto;
+  font-size: small;
+}
+
+.controls button {
+  white-space: nowrap;
+  margin: 0;
+}
+
+#stop:enabled {
+  color: #fff;
+  background: #b8384a;
+}
+
+#stop:enabled:hover {
+  background: #9e2f3f;
+}
+
+.hint {
+  opacity: .7;
+}
+
+#modules .empty {
+  border: 1px dashed;
+  border-radius: 6px;
+  margin: 0 0 .5rem;
+  padding: .75rem;
+}
+
+#sensors:empty {
+  display: none;
+}
+
+#sensors {
+  margin-bottom: .5rem;
+}
+
+.slider {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .75rem;
+  margin: 0;
+  display: flex;
+}
+
+.slider input {
+  flex: 8rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.slider output {
+  text-align: right;
+  min-width: 7ch;
+  font-family: monospace;
+}
+
+#stdout {
+  border: 1px solid var(--terminal-border);
+  background: var(--terminal-background);
+  min-height: 6rem;
+  color: var(--terminal-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: var(--terminal-scrollbar) var(--terminal-background);
+  border-radius: 6px;
+  flex: auto;
+  padding: .5rem;
+  font-family: monospace;
+  overflow: auto;
+}
+
+#stdout code {
+  color: inherit;
+  background: none;
+  padding: 0;
+  font-weight: bold;
+}
+
+#stdout .error {
+  color: var(--terminal-error);
+}
+
+#input {
+  gap: .5rem;
+  margin-top: .5rem;
+  display: flex;
+}
+
+#input input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+
+#input button {
+  white-space: nowrap;
+  margin: 0;
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
+}
+</style>
+
+    <script type="module">/* eslint-disable @typescript-eslint/no-namespace */ /* eslint-disable @typescript-eslint/no-unused-vars */ 
 
 /**
  * @license
@@ -22950,92 +23131,6 @@ class $86959eedeb15e50e$export$c3b37e94fdf214dd {
 
 
 
-
-const $d584820596a6d1a3$var$ZERO_HIGH = 400 // ±150ns
-;
-const $d584820596a6d1a3$var$ONE_HIGH = 800 // ±150ns
-;
-const $d584820596a6d1a3$var$ZERO_LOW = 850 // ±150ns
-;
-const $d584820596a6d1a3$var$ONE_LOW = 450 // ±150ns
-;
-const $d584820596a6d1a3$var$MARGIN = 160 // 160 gives extra margin for FastLED
-;
-const $d584820596a6d1a3$var$RESET_TIME = 50000;
-class $d584820596a6d1a3$export$e1e1654c63a0eb5 {
-    constructor(numPixels = 0){
-        this.numPixels = numPixels;
-        this.pixels = new Uint32Array(this.numPixels);
-        this.pixelIndex = 0;
-        this.currentValue = 0;
-        this.bitIndex = 0;
-        this.lastState = (0, $12dded1feaa73920$export$b745cd59055324b1).Input;
-        this.lastTimestamp = 0;
-        this.detectZero = false;
-        this.detectOne = false;
-        this.overflow = false;
-        this.updated = true;
-    }
-    feedValue(pinState, cpuNanos) {
-        if (pinState !== this.lastState) {
-            const delta = cpuNanos - this.lastTimestamp;
-            if (!this.overflow && (this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).High || this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).InputPullUp)) {
-                if (delta >= $d584820596a6d1a3$var$ZERO_HIGH - $d584820596a6d1a3$var$MARGIN && delta <= $d584820596a6d1a3$var$ZERO_HIGH + $d584820596a6d1a3$var$MARGIN) this.detectZero = true;
-                if (delta >= $d584820596a6d1a3$var$ONE_HIGH - $d584820596a6d1a3$var$MARGIN && delta <= $d584820596a6d1a3$var$ONE_HIGH + $d584820596a6d1a3$var$MARGIN) this.detectOne = true;
-                if (pinState === (0, $12dded1feaa73920$export$b745cd59055324b1).Low) this.checkLastBit();
-            }
-            if (this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).Low) {
-                if (this.detectZero && delta >= $d584820596a6d1a3$var$ZERO_LOW - $d584820596a6d1a3$var$MARGIN) this.feedBit(0);
-                else if (this.detectOne && delta >= $d584820596a6d1a3$var$ONE_LOW - $d584820596a6d1a3$var$MARGIN) this.feedBit(1);
-                if (delta >= $d584820596a6d1a3$var$RESET_TIME) this.resetState();
-                this.detectZero = false;
-                this.detectOne = false;
-            }
-            this.lastState = pinState;
-            this.lastTimestamp = cpuNanos;
-        }
-    }
-    checkLastBit() {
-        // For the last bit in transmission, we might not detect the LOW period, as the signal
-        // may not go back HIGH for a long time. Thus, we update the LED based on the predicted
-        // value of the last bit
-        if (this.bitIndex === 23) {
-            this.pixels[this.pixelIndex] = this.currentValue | (this.detectOne ? 1 : 0);
-            this.updated = true;
-        }
-    }
-    feedBit(value) {
-        if (value) this.currentValue |= 1 << 23 - this.bitIndex;
-        this.bitIndex++;
-        if (this.bitIndex === 24) {
-            this.pixels[this.pixelIndex++] = this.currentValue;
-            this.updated = true;
-            this.bitIndex = 0;
-            this.currentValue = 0;
-        }
-        if (this.pixelIndex >= this.numPixels) this.overflow = true;
-    }
-    resetState() {
-        this.detectZero = false;
-        this.detectOne = false;
-        this.overflow = false;
-        this.bitIndex = 0;
-        this.currentValue = 0;
-        this.pixelIndex = 0;
-    }
-    update(cpuNanos) {
-        let result = null;
-        if (this.updated) {
-            const delta = cpuNanos - this.lastTimestamp;
-            if (!this.overflow && this.bitIndex === 23 && this.detectZero && this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).Low && delta >= $d584820596a6d1a3$var$ZERO_LOW - $d584820596a6d1a3$var$MARGIN) this.pixels[this.pixelIndex] = this.currentValue;
-            result = this.pixels;
-            this.updated = false;
-        }
-        return result;
-    }
-}
-
-
 class $96106803a6abb79d$export$63e3c8dfe1f20173 {
     constructor(twi){
         this.twi = twi;
@@ -23076,547 +23171,6 @@ class $96106803a6abb79d$export$63e3c8dfe1f20173 {
     readByte(ack) {
         if (this.activeDevice && !this.writeMode) this.twi.completeRead(this.activeDevice.i2cReadByte(ack));
         else this.twi.completeRead(0xff);
-    }
-}
-
-
-/**
- * SSD1306 Controller Implementation
- *
- * Copyright (C) 2020 Uri Shaked
- *
- * For a full-blown Arduino simulator with SSD1306 and many other parts, check out Wokwi
- * at https://wokwi.com/
- */ const $80a2d79702959753$export$c1e25f625816cbba = 0x3c // For 32 bit tall display
-;
-const $80a2d79702959753$export$600935ff10924ec1 = 0x3d // For others
-;
-const $80a2d79702959753$var$SSD1306_MODE_CMD = 0x0;
-const $80a2d79702959753$var$SSD1306_MODE_DATA = 0x40;
-const $80a2d79702959753$var$CMD_MEMORY_MODE = 0x20;
-const $80a2d79702959753$var$CMD_COLUMN_ADDR = 0x21;
-const $80a2d79702959753$var$CMD_PAGE_ADDR = 0x22;
-const $80a2d79702959753$var$CMD_SET_CONTRAST = 0x81;
-const $80a2d79702959753$var$CMD_CHARGE_PUMP = 0x8d;
-const $80a2d79702959753$var$CMD_SEG_REMAP_OFF = 0xa0;
-const $80a2d79702959753$var$CMD_SEG_REMAP_ON = 0xa1;
-const $80a2d79702959753$var$CMD_DISPLAY_ALL_ON_RESUME = 0xa4;
-const $80a2d79702959753$var$CMD_DISPLAY_ALL_ON = 0xa5;
-const $80a2d79702959753$var$CMD_NORMAL_DISPLAY = 0xa6;
-const $80a2d79702959753$var$CMD_INVERT_DISPLAY = 0xa7;
-const $80a2d79702959753$var$CMD_SET_MULTIPLEX = 0xa8;
-const $80a2d79702959753$var$CMD_DISPLAY_OFF = 0xae;
-const $80a2d79702959753$var$CMD_DISPLAY_ON = 0xaf;
-const $80a2d79702959753$var$CMD_COM_SCAN_INC = 0xc0;
-const $80a2d79702959753$var$CMD_COM_SCAN_DEC = 0xc8;
-const $80a2d79702959753$var$CMD_SET_DISPLAY_OFFSET = 0xd3;
-const $80a2d79702959753$var$CMD_SET_DISPLAY_CLOCK_DIV = 0xd5;
-const $80a2d79702959753$var$CMD_SET_PRECHARGE = 0xd9;
-const $80a2d79702959753$var$CMD_SET_COM_PINS = 0xda;
-const $80a2d79702959753$var$CMD_SET_VCOM_DESELECT = 0xdb;
-const $80a2d79702959753$var$CMD_NOP = 0xe3;
-const $80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL = 0x26;
-const $80a2d79702959753$var$CMD_LEFT_HORIZONTAL_SCROLL = 0x27;
-const $80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL = 0x29;
-const $80a2d79702959753$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL = 0x2a;
-const $80a2d79702959753$var$CMD_DEACTIVATE_SCROLL = 0x2e;
-const $80a2d79702959753$var$CMD_ACTIVATE_SCROLL = 0x2f;
-const $80a2d79702959753$var$CMD_SET_VERTICAL_SCROLL_AREA = 0xa3;
-const $80a2d79702959753$var$MEM_MODE_HORIZONTAL_ADDRESSING = 0;
-const $80a2d79702959753$var$MEM_MODE_VERTICAL_ADDRESSING = 1;
-const $80a2d79702959753$var$MEM_MODE_PAGE_ADDRESSING = 2;
-/**
- * Specifies the number of parameter bytes for each multi-byte command
- */ const $80a2d79702959753$var$multiByteCommands = {
-    [$80a2d79702959753$var$CMD_SET_CONTRAST]: 1,
-    [$80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL]: 6,
-    [$80a2d79702959753$var$CMD_LEFT_HORIZONTAL_SCROLL]: 6,
-    [$80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL]: 5,
-    [$80a2d79702959753$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL]: 5,
-    [$80a2d79702959753$var$CMD_SET_VERTICAL_SCROLL_AREA]: 2,
-    [$80a2d79702959753$var$CMD_MEMORY_MODE]: 1,
-    [$80a2d79702959753$var$CMD_COLUMN_ADDR]: 2,
-    [$80a2d79702959753$var$CMD_PAGE_ADDR]: 2,
-    [$80a2d79702959753$var$CMD_SET_MULTIPLEX]: 1,
-    [$80a2d79702959753$var$CMD_SET_DISPLAY_OFFSET]: 1,
-    [$80a2d79702959753$var$CMD_SET_COM_PINS]: 1,
-    [$80a2d79702959753$var$CMD_SET_DISPLAY_CLOCK_DIV]: 1,
-    [$80a2d79702959753$var$CMD_SET_PRECHARGE]: 1,
-    [$80a2d79702959753$var$CMD_SET_VCOM_DESELECT]: 1,
-    [$80a2d79702959753$var$CMD_CHARGE_PUMP]: 1
-};
-// Defined in page 28 of the datasheet, frames per scroll step
-const $80a2d79702959753$var$scrollSpeeds = {
-    0: 5,
-    1: 64,
-    2: 128,
-    3: 256,
-    4: 3,
-    5: 4,
-    6: 25,
-    7: 2
-};
-// Oscillator frequency defined in page 49 of the datasheet
-const $80a2d79702959753$var$fOsc = 370000 // Hz
-;
-class $80a2d79702959753$export$4e603223a90213cc {
-    constructor(cpuMillis){
-        this.cpuMillis = cpuMillis;
-        this.width = 128;
-        this.height = 64;
-        this.pixels = new Uint8Array(this.width * this.height / 8);
-        this.displayOn = false;
-        this.updated = false;
-        this.scrollActive = false;
-        this.contrast = 0;
-        this.invert = false;
-        this.clockDivider = 0;
-        this.multiplexRatio = 0;
-        this.phase1 = 0;
-        this.phase2 = 0;
-        this.nextScrollTime = 0;
-        this.activeColumn = 0;
-        this.columnStart = 0;
-        this.columnEnd = 0;
-        this.activePage = 0;
-        this.pageStart = 0;
-        this.pageEnd = 0;
-        this.memoryMode = 0;
-        this.startLine = 0;
-        this.scrollRight = false;
-        this.scrollVertical = false;
-        this.scrollStartPage = 0;
-        this.scrollEndPage = 0;
-        this.scrollSpeed = 0;
-        this.verticalOffset = 0;
-        this.scrollOffset = 0;
-        this.firstByte = true;
-        this.commandMode = false;
-        this.currentCommandIndex = 0;
-        this.currentCommandLength = 0;
-        this.currentCommand = new Uint8Array(8);
-        this.reset();
-    }
-    update() {
-        let result = null;
-        if (this.scrollActive && this.cpuMillis() > this.nextScrollTime) {
-            this.scroll();
-            this.calculateNextScroll();
-        }
-        if (this.updated) {
-            const { pixels: pixels, invert: invert, contrast: contrast, scrollOffset: scrollOffset, startLine: startLine } = this;
-            result = {
-                pixels: pixels,
-                invert: invert,
-                contrast: contrast,
-                scrollOffset: scrollOffset,
-                startLine: startLine
-            };
-            this.updated = false;
-        }
-        return result;
-    }
-    toImageData(target) {
-        const { pixels: pixels, invert: invert, scrollOffset: scrollOffset, width: width, height: height } = this;
-        const { data: data } = target;
-        for(let y = 0; y < height; y++)for(let x = 0; x < width; x++){
-            const virtualY = (y + scrollOffset) % height;
-            const pixIndex = Math.floor(virtualY / 8) * width + x;
-            const pixValue = pixels[pixIndex] & 1 << virtualY % 8 ? !invert : invert;
-            const dataOffset = (y * target.width + x) * 4;
-            data.fill(pixValue ? 0xff : 0, dataOffset, dataOffset + 3);
-            data[dataOffset + 3] = 0xff;
-        }
-    }
-    reset() {
-        this.memoryMode = $80a2d79702959753$var$MEM_MODE_PAGE_ADDRESSING;
-        this.contrast = 0x7f;
-        this.clockDivider = 1;
-        this.multiplexRatio = 63;
-        this.phase1 = 2;
-        this.phase2 = 2;
-        this.scrollActive = false;
-        this.currentCommandIndex = 0;
-        this.activeColumn = 0;
-        this.columnStart = 0;
-        this.columnEnd = 127;
-        this.activePage = 0;
-        this.pageStart = 0;
-        this.pageEnd = 7;
-        this.startLine = 0;
-        this.invert = false;
-    }
-    i2cConnect() {
-        this.firstByte = true;
-        return true;
-    }
-    i2cReadByte() {
-        return 0xff;
-    }
-    i2cWriteByte(value) {
-        if (this.firstByte) {
-            this.commandMode = value === $80a2d79702959753$var$SSD1306_MODE_CMD;
-            this.firstByte = false;
-            return value === $80a2d79702959753$var$SSD1306_MODE_CMD || value === $80a2d79702959753$var$SSD1306_MODE_DATA;
-        }
-        if (this.commandMode) this.processCommand(value);
-        else this.processData(value);
-        return true;
-    }
-    processCommand(value) {
-        this.currentCommand[this.currentCommandIndex] = value;
-        if (!this.currentCommandIndex) this.currentCommandLength = 1 + ($80a2d79702959753$var$multiByteCommands[value] || 0);
-        this.currentCommandIndex++;
-        if (this.currentCommandIndex < this.currentCommandLength) // Wait for the next command byte
-        return;
-        const commandCode = this.currentCommand[0];
-        let autoUpdate = false;
-        switch(commandCode){
-            case $80a2d79702959753$var$CMD_SET_CONTRAST:
-                this.contrast = this.currentCommand[1];
-                autoUpdate = true;
-                break;
-            case $80a2d79702959753$var$CMD_DISPLAY_OFF:
-                this.displayOn = false;
-                this.updated = true;
-                break;
-            case $80a2d79702959753$var$CMD_DISPLAY_ON:
-                this.displayOn = true;
-                this.updated = true;
-                break;
-            case $80a2d79702959753$var$CMD_NORMAL_DISPLAY:
-                this.invert = false;
-                autoUpdate = true;
-                break;
-            case $80a2d79702959753$var$CMD_INVERT_DISPLAY:
-                this.invert = true;
-                autoUpdate = true;
-                break;
-            case $80a2d79702959753$var$CMD_NOP:
-                break;
-            case $80a2d79702959753$var$CMD_MEMORY_MODE:
-                this.memoryMode = this.currentCommand[1] & 0x3;
-                break;
-            case $80a2d79702959753$var$CMD_COLUMN_ADDR:
-                this.activeColumn = this.columnStart;
-                this.columnStart = this.currentCommand[1] & 0x7f;
-                this.columnEnd = this.currentCommand[2] & 0x7f;
-                break;
-            case $80a2d79702959753$var$CMD_PAGE_ADDR:
-                this.activePage = this.pageStart;
-                this.pageStart = this.currentCommand[1] & 0x7;
-                this.pageEnd = this.currentCommand[2] & 0x7;
-                break;
-            case $80a2d79702959753$var$CMD_DEACTIVATE_SCROLL:
-                this.scrollOffset = 0;
-                this.scrollActive = false;
-                break;
-            case $80a2d79702959753$var$CMD_ACTIVATE_SCROLL:
-                this.scrollActive = true;
-                this.calculateNextScroll();
-                break;
-            case $80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL:
-            case $80a2d79702959753$var$CMD_LEFT_HORIZONTAL_SCROLL:
-                this.scrollVertical = false;
-                this.scrollRight = commandCode === $80a2d79702959753$var$CMD_RIGHT_HORIZONTAL_SCROLL;
-                this.scrollStartPage = this.currentCommand[2] & 0x7;
-                this.scrollSpeed = this.currentCommand[3] & 0x7;
-                this.scrollEndPage = this.currentCommand[4] & 0x7;
-                break;
-            case $80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL:
-            case $80a2d79702959753$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL:
-                this.scrollRight = commandCode === $80a2d79702959753$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL;
-                this.scrollStartPage = this.currentCommand[2] & 0x7;
-                this.scrollSpeed = this.currentCommand[3] & 0x7;
-                this.scrollEndPage = this.currentCommand[4] & 0x7;
-                this.verticalOffset = this.currentCommand[5] & 0x3f;
-                this.scrollVertical = this.verticalOffset > 0;
-                break;
-            case $80a2d79702959753$var$CMD_SET_DISPLAY_CLOCK_DIV:
-                this.clockDivider = 1 + (this.currentCommand[1] & 0xf);
-                break;
-            case $80a2d79702959753$var$CMD_SET_PRECHARGE:
-                this.phase1 = this.currentCommand[1] & 0xf;
-                this.phase2 = this.currentCommand[1] >> 4 & 0xf;
-                break;
-            case $80a2d79702959753$var$CMD_CHARGE_PUMP:
-            case $80a2d79702959753$var$CMD_SET_DISPLAY_OFFSET:
-            case $80a2d79702959753$var$CMD_SET_MULTIPLEX:
-            case $80a2d79702959753$var$CMD_COM_SCAN_INC:
-            case $80a2d79702959753$var$CMD_COM_SCAN_DEC:
-            case $80a2d79702959753$var$CMD_SET_PRECHARGE:
-            case $80a2d79702959753$var$CMD_SET_COM_PINS:
-            case $80a2d79702959753$var$CMD_SET_VCOM_DESELECT:
-            case $80a2d79702959753$var$CMD_SEG_REMAP_OFF:
-            case $80a2d79702959753$var$CMD_SEG_REMAP_ON:
-            case $80a2d79702959753$var$CMD_SET_VERTICAL_SCROLL_AREA:
-            case $80a2d79702959753$var$CMD_DISPLAY_ALL_ON:
-            case $80a2d79702959753$var$CMD_DISPLAY_ALL_ON_RESUME:
-                break;
-            default:
-                if (commandCode <= 0x0f) {
-                    this.activeColumn = this.activeColumn & 0xf0 | commandCode;
-                    break;
-                }
-                if (commandCode >= 0x10 && commandCode <= 0x1f) {
-                    this.activeColumn = this.activeColumn & 0x0f | (commandCode & 0x0f) << 4;
-                    break;
-                }
-                if (commandCode >= 0x40 && commandCode <= 0x7f) {
-                    this.startLine = commandCode & 0x3f;
-                    autoUpdate = true;
-                    break;
-                }
-                if (commandCode >= 0xb0 && commandCode <= 0xb7) {
-                    this.activePage = commandCode & 0x7;
-                    break;
-                }
-                console.warn('Unknown SSD1306 Command', commandCode.toString(16), this.currentCommand.slice(1, this.currentCommandIndex));
-        }
-        if (autoUpdate && this.displayOn) this.updated = true;
-        // Reset command buffer index, ready to read the next command
-        this.currentCommandIndex = 0;
-    }
-    processData(value) {
-        const target = this.activePage * this.width + this.activeColumn;
-        this.pixels[target] = value;
-        // Memory modes are explained in pages 34-35 of the datasheet,
-        // and determine how the order of writing the pixels to the
-        // display RAM.
-        switch(this.memoryMode){
-            case $80a2d79702959753$var$MEM_MODE_HORIZONTAL_ADDRESSING:
-                this.activeColumn++;
-                if (this.activeColumn > this.columnEnd) {
-                    this.activeColumn = this.columnStart;
-                    this.activePage++;
-                    if (this.activePage > this.pageEnd) this.activePage = this.pageStart;
-                }
-                break;
-            case $80a2d79702959753$var$MEM_MODE_VERTICAL_ADDRESSING:
-                this.activePage++;
-                if (this.activePage > this.pageEnd) {
-                    this.activePage = this.pageStart;
-                    this.activeColumn++;
-                    if (this.activeColumn > this.columnEnd) this.activeColumn = this.columnStart;
-                }
-                break;
-            case $80a2d79702959753$var$MEM_MODE_PAGE_ADDRESSING:
-            default:
-                this.activeColumn++;
-                if (this.activeColumn > this.width) {
-                    this.activeColumn = 0;
-                    this.activePage++;
-                }
-                break;
-        }
-        this.updated = true;
-    }
-    i2cDisconnect() {}
-    scroll() {
-        // TODO clock
-        const pageSize = this.width;
-        for(let page = this.scrollStartPage; page <= this.scrollEndPage; page++){
-            const pageStart = page * pageSize;
-            if (this.scrollRight) {
-                const last = this.pixels[pageStart + pageSize - 1];
-                this.pixels.set(this.pixels.slice(pageStart, pageStart + pageSize - 1), pageStart + 1);
-                this.pixels[pageStart] = last;
-            } else {
-                const first = this.pixels[pageStart];
-                this.pixels.set(this.pixels.slice(pageStart + 1, pageStart + pageSize), pageStart);
-                this.pixels[pageStart + pageSize - 1] = first;
-            }
-            this.updated = true;
-        }
-        if (this.scrollVertical) this.scrollOffset = (this.scrollOffset + this.verticalOffset) % this.height;
-    }
-    get scrollFrameTime() {
-        return 1000 * $80a2d79702959753$var$scrollSpeeds[this.scrollSpeed] / this.frameFrequency;
-    }
-    calculateNextScroll() {
-        this.nextScrollTime = this.cpuMillis() + this.scrollFrameTime;
-    }
-    get frameFrequency() {
-        // Taken from section 8.3 (page 22) of the datasheet
-        const K = this.phase1 + this.phase2 + 50;
-        return $80a2d79702959753$var$fOsc / (this.clockDivider * K * (1 + this.multiplexRatio));
-    }
-}
-
-
-/**
- * LCD1602
- * Part of AVR8js Electron Playground
- *
- * Copyright (C) 2019, Uri Shaked
- * Copyright (C) 2020, Anderson Costa
- */ const $47ee68282ac4f23a$export$dd8dc45f6c3d9010 = 0x27;
-const $47ee68282ac4f23a$var$LCD_MODE_CMD = 0x00;
-const $47ee68282ac4f23a$var$LCD_MODE_DATA = 0x40;
-const $47ee68282ac4f23a$var$LCD_CMD_CLEAR = 0x01;
-const $47ee68282ac4f23a$var$LCD_CMD_HOME = 0x02;
-const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE = 0x04;
-const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_INCREMENT = 0x02;
-const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_DECREMENT = 0x00;
-const $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_SHIFT = 0x01;
-const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CONTROL = 0x08;
-const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_ENABLE = 0x04;
-const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR = 0x02;
-const $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR_BLINK = 0x01;
-const $47ee68282ac4f23a$var$LCD_CMD_SHIFT = 0x10;
-const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_CURSOR = 0x00;
-const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_DISPLAY = 0x08;
-const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_LEFT = 0x00;
-const $47ee68282ac4f23a$var$LCD_CMD_SHIFT_RIGHT = 0x04;
-const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION = 0x20;
-const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION_LCD_1LINE = 0x00;
-const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION_LCD_2LINE = 0x08;
-const $47ee68282ac4f23a$var$LCD_CMD_FUNCTION_5x10_DOTS = 0x04;
-const $47ee68282ac4f23a$var$LCD_CMD_SET_CGRAM_ADDR = 0x40;
-const $47ee68282ac4f23a$var$LCD_CMD_SET_DRAM_ADDR = 0x80;
-// Extra
-const $47ee68282ac4f23a$var$LCD_CMD_SET_CONTRAST = 0x81;
-// Oscillator frequency defined in datasheet is 270 kHz
-const $47ee68282ac4f23a$var$fOsc = 270000;
-class $47ee68282ac4f23a$export$c3787bd0c90a66b8 {
-    constructor(cpuMillis){
-        this.cpuMillis = cpuMillis;
-        this.cgram = new Uint8Array(64);
-        this.ddram = new Uint8Array(128);
-        this.addr = 0x00 // Address
-        ;
-        this.shift = 0x00 // Shift Register
-        ;
-        this.data = 0x00 // Data Register
-        ;
-        this.displayOn = false;
-        this.blinkOn = false;
-        this.cursorOn = false;
-        this.backlight = false;
-        this.firstByte = true;
-        this.commandMode = false;
-        this.cgramMode = false;
-        this.cgramUpdated = true;
-        this.incrementMode = true;
-        this.shiftMode = false;
-        this.is8bit = true;
-        this.updated = false;
-        this.render();
-    }
-    update() {
-        if (this.updated) {
-            this.updated = false;
-            return this.render();
-        }
-        return false;
-    }
-    render() {
-        let characters = new Uint8Array(32);
-        if (this.displayOn) {
-            const r1 = this.shift % 64;
-            const r2 = 64 + this.shift % 64;
-            // Set characters
-            characters.set(this.ddram.slice(r1, r1 + 16));
-            characters.set(this.ddram.slice(r2, r2 + 16), 16);
-        } else characters.fill(32);
-        const result = {
-            blink: this.blinkOn,
-            cursor: this.cursorOn,
-            cursorX: this.addr % 64,
-            cursorY: Math.floor(this.addr / 64),
-            characters: characters,
-            backlight: this.backlight,
-            cgram: this.cgram,
-            cgramUpdated: this.cgramUpdated
-        };
-        this.cgramUpdated = false;
-        return result;
-    }
-    backlightOn(value) {
-        if (this.backlight !== value) this.backlight = value;
-    }
-    i2cConnect() {
-        return true;
-    }
-    i2cDisconnect() {}
-    i2cReadByte() {
-        return 0xff;
-    }
-    i2cWriteByte(value) {
-        const data = value & 0xf0;
-        const rs = value & 0x01 ? true : false // Register Select
-        ;
-        const bl = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CONTROL ? true : false;
-        // Turn on/off backlight
-        this.backlightOn(bl);
-        // Check data write
-        if (value & 0x04 && !(value & 0x02)) this.writeData(data, rs);
-        return this.updated = true;
-    }
-    writeData(value, rs) {
-        if (!this.is8bit) {
-            // Check register
-            if (this.firstByte) {
-                this.firstByte = false;
-                this.data = value;
-                return false;
-            }
-            value = this.data | value >> 4;
-            this.firstByte = true;
-        }
-        if (rs) this.processData(value);
-        else this.processCommand(value);
-        this.updated = true;
-    }
-    processCommand(value) {
-        // Check commands
-        if (value & $47ee68282ac4f23a$var$LCD_CMD_FUNCTION) this.is8bit = value & 0x10 ? true : false;
-        else if (value & $47ee68282ac4f23a$var$LCD_CMD_SET_DRAM_ADDR) {
-            this.cgramMode = false;
-            this.addr = value & 0x7f;
-        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_SET_CGRAM_ADDR) {
-            this.cgramMode = true;
-            this.addr = value & 0x3f;
-        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_SHIFT) {
-            const shiftDisplay = value & $47ee68282ac4f23a$var$LCD_CMD_SHIFT_DISPLAY ? true : false;
-            const shiftRight = value & $47ee68282ac4f23a$var$LCD_CMD_SHIFT_RIGHT ? 1 : -1;
-            this.cgramMode = false;
-            this.addr = (this.addr + shiftRight) % 128;
-            if (shiftDisplay) this.shift = (this.shift + shiftRight) % 64;
-        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CONTROL) {
-            this.displayOn = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_ENABLE ? true : false;
-            this.blinkOn = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR_BLINK ? true : false;
-            this.cursorOn = value & $47ee68282ac4f23a$var$LCD_CMD_DISPLAY_CURSOR ? true : false;
-        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE) {
-            this.cgramMode = false;
-            this.incrementMode = value & $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_INCREMENT ? true : false;
-            this.shiftMode = value & $47ee68282ac4f23a$var$LCD_CMD_ENTRY_MODE_SHIFT ? true : false;
-        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_HOME) {
-            this.cgramMode = false;
-            this.addr = 0x00;
-            this.shift = 0x00;
-        } else if (value & $47ee68282ac4f23a$var$LCD_CMD_CLEAR) {
-            this.cgramMode = false;
-            this.incrementMode = true;
-            this.addr = 0x00;
-            this.shift = 0x00;
-            this.ddram.fill(32);
-        } else console.warn('Unknown LCD1602 Command', value.toString(16));
-    }
-    processData(value) {
-        // Check RAM type
-        if (this.cgramMode) {
-            // CGRAM
-            const data = (value & 0x01) << 4 | (value & 0x02) << 2 | value & 0x04 | (value & 0x08) >> 2 | (value & 0x10) >> 4;
-            this.cgram[this.addr] = data;
-            this.addr = (this.addr + 1) % 64;
-            this.cgramUpdated = true;
-        } else {
-            // DRAM
-            const mode = this.incrementMode ? 1 : -1;
-            this.ddram[this.addr] = value;
-            this.addr = (this.addr + mode) % 128, this.shiftMode && (this.shift = (this.shift + mode) % 40);
-        }
     }
 }
 
@@ -24020,6 +23574,633 @@ class $9cac5ab4c27a7045$export$e0bad4831cb237ba {
 
 
 
+/**
+ * LCD1602
+ * Part of AVR8js Electron Playground
+ *
+ * Copyright (C) 2019, Uri Shaked
+ * Copyright (C) 2020, Anderson Costa
+ */ const $ec32cef1cc338d6b$export$dd8dc45f6c3d9010 = 0x27;
+const $ec32cef1cc338d6b$var$LCD_MODE_CMD = 0x00;
+const $ec32cef1cc338d6b$var$LCD_MODE_DATA = 0x40;
+const $ec32cef1cc338d6b$var$LCD_CMD_CLEAR = 0x01;
+const $ec32cef1cc338d6b$var$LCD_CMD_HOME = 0x02;
+const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE = 0x04;
+const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_INCREMENT = 0x02;
+const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_DECREMENT = 0x00;
+const $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_SHIFT = 0x01;
+const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CONTROL = 0x08;
+const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_ENABLE = 0x04;
+const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR = 0x02;
+const $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR_BLINK = 0x01;
+const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT = 0x10;
+const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_CURSOR = 0x00;
+const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_DISPLAY = 0x08;
+const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_LEFT = 0x00;
+const $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_RIGHT = 0x04;
+const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION = 0x20;
+const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION_LCD_1LINE = 0x00;
+const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION_LCD_2LINE = 0x08;
+const $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION_5x10_DOTS = 0x04;
+const $ec32cef1cc338d6b$var$LCD_CMD_SET_CGRAM_ADDR = 0x40;
+const $ec32cef1cc338d6b$var$LCD_CMD_SET_DRAM_ADDR = 0x80;
+// Extra
+const $ec32cef1cc338d6b$var$LCD_CMD_SET_CONTRAST = 0x81;
+// Oscillator frequency defined in datasheet is 270 kHz
+const $ec32cef1cc338d6b$var$fOsc = 270000;
+class $ec32cef1cc338d6b$export$c3787bd0c90a66b8 {
+    constructor(cpuMillis){
+        this.cpuMillis = cpuMillis;
+        this.cgram = new Uint8Array(64);
+        this.ddram = new Uint8Array(128);
+        this.addr = 0x00 // Address
+        ;
+        this.shift = 0x00 // Shift Register
+        ;
+        this.data = 0x00 // Data Register
+        ;
+        this.displayOn = false;
+        this.blinkOn = false;
+        this.cursorOn = false;
+        this.backlight = false;
+        this.firstByte = true;
+        this.commandMode = false;
+        this.cgramMode = false;
+        this.cgramUpdated = true;
+        this.incrementMode = true;
+        this.shiftMode = false;
+        this.is8bit = true;
+        this.updated = false;
+        this.render();
+    }
+    update() {
+        if (this.updated) {
+            this.updated = false;
+            return this.render();
+        }
+        return false;
+    }
+    render() {
+        let characters = new Uint8Array(32);
+        if (this.displayOn) {
+            const r1 = this.shift % 64;
+            const r2 = 64 + this.shift % 64;
+            // Set characters
+            characters.set(this.ddram.slice(r1, r1 + 16));
+            characters.set(this.ddram.slice(r2, r2 + 16), 16);
+        } else characters.fill(32);
+        const result = {
+            blink: this.blinkOn,
+            cursor: this.cursorOn,
+            cursorX: this.addr % 64,
+            cursorY: Math.floor(this.addr / 64),
+            characters: characters,
+            backlight: this.backlight,
+            cgram: this.cgram,
+            cgramUpdated: this.cgramUpdated
+        };
+        this.cgramUpdated = false;
+        return result;
+    }
+    backlightOn(value) {
+        if (this.backlight !== value) this.backlight = value;
+    }
+    i2cConnect() {
+        return true;
+    }
+    i2cDisconnect() {}
+    i2cReadByte() {
+        return 0xff;
+    }
+    i2cWriteByte(value) {
+        const data = value & 0xf0;
+        const rs = value & 0x01 ? true : false // Register Select
+        ;
+        const bl = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CONTROL ? true : false;
+        // Turn on/off backlight
+        this.backlightOn(bl);
+        // Check data write
+        if (value & 0x04 && !(value & 0x02)) this.writeData(data, rs);
+        return this.updated = true;
+    }
+    writeData(value, rs) {
+        if (!this.is8bit) {
+            // Check register
+            if (this.firstByte) {
+                this.firstByte = false;
+                this.data = value;
+                return false;
+            }
+            value = this.data | value >> 4;
+            this.firstByte = true;
+        }
+        if (rs) this.processData(value);
+        else this.processCommand(value);
+        this.updated = true;
+    }
+    processCommand(value) {
+        // Check commands
+        if (value & $ec32cef1cc338d6b$var$LCD_CMD_FUNCTION) this.is8bit = value & 0x10 ? true : false;
+        else if (value & $ec32cef1cc338d6b$var$LCD_CMD_SET_DRAM_ADDR) {
+            this.cgramMode = false;
+            this.addr = value & 0x7f;
+        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_SET_CGRAM_ADDR) {
+            this.cgramMode = true;
+            this.addr = value & 0x3f;
+        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_SHIFT) {
+            const shiftDisplay = value & $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_DISPLAY ? true : false;
+            const shiftRight = value & $ec32cef1cc338d6b$var$LCD_CMD_SHIFT_RIGHT ? 1 : -1;
+            this.cgramMode = false;
+            this.addr = (this.addr + shiftRight) % 128;
+            if (shiftDisplay) this.shift = (this.shift + shiftRight) % 64;
+        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CONTROL) {
+            this.displayOn = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_ENABLE ? true : false;
+            this.blinkOn = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR_BLINK ? true : false;
+            this.cursorOn = value & $ec32cef1cc338d6b$var$LCD_CMD_DISPLAY_CURSOR ? true : false;
+        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE) {
+            this.cgramMode = false;
+            this.incrementMode = value & $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_INCREMENT ? true : false;
+            this.shiftMode = value & $ec32cef1cc338d6b$var$LCD_CMD_ENTRY_MODE_SHIFT ? true : false;
+        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_HOME) {
+            this.cgramMode = false;
+            this.addr = 0x00;
+            this.shift = 0x00;
+        } else if (value & $ec32cef1cc338d6b$var$LCD_CMD_CLEAR) {
+            this.cgramMode = false;
+            this.incrementMode = true;
+            this.addr = 0x00;
+            this.shift = 0x00;
+            this.ddram.fill(32);
+        } else console.warn('Unknown LCD1602 Command', value.toString(16));
+    }
+    processData(value) {
+        // Check RAM type
+        if (this.cgramMode) {
+            // CGRAM
+            const data = (value & 0x01) << 4 | (value & 0x02) << 2 | value & 0x04 | (value & 0x08) >> 2 | (value & 0x10) >> 4;
+            this.cgram[this.addr] = data;
+            this.addr = (this.addr + 1) % 64;
+            this.cgramUpdated = true;
+        } else {
+            // DRAM
+            const mode = this.incrementMode ? 1 : -1;
+            this.ddram[this.addr] = value;
+            this.addr = (this.addr + mode) % 128, this.shiftMode && (this.shift = (this.shift + mode) % 40);
+        }
+    }
+}
+
+
+/**
+ * SSD1306 Controller Implementation
+ *
+ * Copyright (C) 2020 Uri Shaked
+ *
+ * For a full-blown Arduino simulator with SSD1306 and many other parts, check out Wokwi
+ * at https://wokwi.com/
+ */ const $151fddc18046f076$export$c1e25f625816cbba = 0x3c // For 32 bit tall display
+;
+const $151fddc18046f076$export$600935ff10924ec1 = 0x3d // For others
+;
+const $151fddc18046f076$var$SSD1306_MODE_CMD = 0x0;
+const $151fddc18046f076$var$SSD1306_MODE_DATA = 0x40;
+const $151fddc18046f076$var$CMD_MEMORY_MODE = 0x20;
+const $151fddc18046f076$var$CMD_COLUMN_ADDR = 0x21;
+const $151fddc18046f076$var$CMD_PAGE_ADDR = 0x22;
+const $151fddc18046f076$var$CMD_SET_CONTRAST = 0x81;
+const $151fddc18046f076$var$CMD_CHARGE_PUMP = 0x8d;
+const $151fddc18046f076$var$CMD_SEG_REMAP_OFF = 0xa0;
+const $151fddc18046f076$var$CMD_SEG_REMAP_ON = 0xa1;
+const $151fddc18046f076$var$CMD_DISPLAY_ALL_ON_RESUME = 0xa4;
+const $151fddc18046f076$var$CMD_DISPLAY_ALL_ON = 0xa5;
+const $151fddc18046f076$var$CMD_NORMAL_DISPLAY = 0xa6;
+const $151fddc18046f076$var$CMD_INVERT_DISPLAY = 0xa7;
+const $151fddc18046f076$var$CMD_SET_MULTIPLEX = 0xa8;
+const $151fddc18046f076$var$CMD_DISPLAY_OFF = 0xae;
+const $151fddc18046f076$var$CMD_DISPLAY_ON = 0xaf;
+const $151fddc18046f076$var$CMD_COM_SCAN_INC = 0xc0;
+const $151fddc18046f076$var$CMD_COM_SCAN_DEC = 0xc8;
+const $151fddc18046f076$var$CMD_SET_DISPLAY_OFFSET = 0xd3;
+const $151fddc18046f076$var$CMD_SET_DISPLAY_CLOCK_DIV = 0xd5;
+const $151fddc18046f076$var$CMD_SET_PRECHARGE = 0xd9;
+const $151fddc18046f076$var$CMD_SET_COM_PINS = 0xda;
+const $151fddc18046f076$var$CMD_SET_VCOM_DESELECT = 0xdb;
+const $151fddc18046f076$var$CMD_NOP = 0xe3;
+const $151fddc18046f076$var$CMD_RIGHT_HORIZONTAL_SCROLL = 0x26;
+const $151fddc18046f076$var$CMD_LEFT_HORIZONTAL_SCROLL = 0x27;
+const $151fddc18046f076$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL = 0x29;
+const $151fddc18046f076$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL = 0x2a;
+const $151fddc18046f076$var$CMD_DEACTIVATE_SCROLL = 0x2e;
+const $151fddc18046f076$var$CMD_ACTIVATE_SCROLL = 0x2f;
+const $151fddc18046f076$var$CMD_SET_VERTICAL_SCROLL_AREA = 0xa3;
+const $151fddc18046f076$var$MEM_MODE_HORIZONTAL_ADDRESSING = 0;
+const $151fddc18046f076$var$MEM_MODE_VERTICAL_ADDRESSING = 1;
+const $151fddc18046f076$var$MEM_MODE_PAGE_ADDRESSING = 2;
+/**
+ * Specifies the number of parameter bytes for each multi-byte command
+ */ const $151fddc18046f076$var$multiByteCommands = {
+    [$151fddc18046f076$var$CMD_SET_CONTRAST]: 1,
+    [$151fddc18046f076$var$CMD_RIGHT_HORIZONTAL_SCROLL]: 6,
+    [$151fddc18046f076$var$CMD_LEFT_HORIZONTAL_SCROLL]: 6,
+    [$151fddc18046f076$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL]: 5,
+    [$151fddc18046f076$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL]: 5,
+    [$151fddc18046f076$var$CMD_SET_VERTICAL_SCROLL_AREA]: 2,
+    [$151fddc18046f076$var$CMD_MEMORY_MODE]: 1,
+    [$151fddc18046f076$var$CMD_COLUMN_ADDR]: 2,
+    [$151fddc18046f076$var$CMD_PAGE_ADDR]: 2,
+    [$151fddc18046f076$var$CMD_SET_MULTIPLEX]: 1,
+    [$151fddc18046f076$var$CMD_SET_DISPLAY_OFFSET]: 1,
+    [$151fddc18046f076$var$CMD_SET_COM_PINS]: 1,
+    [$151fddc18046f076$var$CMD_SET_DISPLAY_CLOCK_DIV]: 1,
+    [$151fddc18046f076$var$CMD_SET_PRECHARGE]: 1,
+    [$151fddc18046f076$var$CMD_SET_VCOM_DESELECT]: 1,
+    [$151fddc18046f076$var$CMD_CHARGE_PUMP]: 1
+};
+// Defined in page 28 of the datasheet, frames per scroll step
+const $151fddc18046f076$var$scrollSpeeds = {
+    0: 5,
+    1: 64,
+    2: 128,
+    3: 256,
+    4: 3,
+    5: 4,
+    6: 25,
+    7: 2
+};
+// Oscillator frequency defined in page 49 of the datasheet
+const $151fddc18046f076$var$fOsc = 370000 // Hz
+;
+class $151fddc18046f076$export$4e603223a90213cc {
+    constructor(cpuMillis){
+        this.cpuMillis = cpuMillis;
+        this.width = 128;
+        this.height = 64;
+        this.pixels = new Uint8Array(this.width * this.height / 8);
+        this.displayOn = false;
+        this.updated = false;
+        this.scrollActive = false;
+        this.contrast = 0;
+        this.invert = false;
+        this.clockDivider = 0;
+        this.multiplexRatio = 0;
+        this.phase1 = 0;
+        this.phase2 = 0;
+        this.nextScrollTime = 0;
+        this.activeColumn = 0;
+        this.columnStart = 0;
+        this.columnEnd = 0;
+        this.activePage = 0;
+        this.pageStart = 0;
+        this.pageEnd = 0;
+        this.memoryMode = 0;
+        this.startLine = 0;
+        this.scrollRight = false;
+        this.scrollVertical = false;
+        this.scrollStartPage = 0;
+        this.scrollEndPage = 0;
+        this.scrollSpeed = 0;
+        this.verticalOffset = 0;
+        this.scrollOffset = 0;
+        this.firstByte = true;
+        this.commandMode = false;
+        this.currentCommandIndex = 0;
+        this.currentCommandLength = 0;
+        this.currentCommand = new Uint8Array(8);
+        this.reset();
+    }
+    update() {
+        let result = null;
+        if (this.scrollActive && this.cpuMillis() > this.nextScrollTime) {
+            this.scroll();
+            this.calculateNextScroll();
+        }
+        if (this.updated) {
+            const { pixels: pixels, invert: invert, contrast: contrast, scrollOffset: scrollOffset, startLine: startLine } = this;
+            result = {
+                pixels: pixels,
+                invert: invert,
+                contrast: contrast,
+                scrollOffset: scrollOffset,
+                startLine: startLine
+            };
+            this.updated = false;
+        }
+        return result;
+    }
+    toImageData(target) {
+        const { pixels: pixels, invert: invert, scrollOffset: scrollOffset, width: width, height: height } = this;
+        const { data: data } = target;
+        for(let y = 0; y < height; y++)for(let x = 0; x < width; x++){
+            const virtualY = (y + scrollOffset) % height;
+            const pixIndex = Math.floor(virtualY / 8) * width + x;
+            const pixValue = pixels[pixIndex] & 1 << virtualY % 8 ? !invert : invert;
+            const dataOffset = (y * target.width + x) * 4;
+            data.fill(pixValue ? 0xff : 0, dataOffset, dataOffset + 3);
+            data[dataOffset + 3] = 0xff;
+        }
+    }
+    reset() {
+        this.memoryMode = $151fddc18046f076$var$MEM_MODE_PAGE_ADDRESSING;
+        this.contrast = 0x7f;
+        this.clockDivider = 1;
+        this.multiplexRatio = 63;
+        this.phase1 = 2;
+        this.phase2 = 2;
+        this.scrollActive = false;
+        this.currentCommandIndex = 0;
+        this.activeColumn = 0;
+        this.columnStart = 0;
+        this.columnEnd = 127;
+        this.activePage = 0;
+        this.pageStart = 0;
+        this.pageEnd = 7;
+        this.startLine = 0;
+        this.invert = false;
+    }
+    i2cConnect() {
+        this.firstByte = true;
+        return true;
+    }
+    i2cReadByte() {
+        return 0xff;
+    }
+    i2cWriteByte(value) {
+        if (this.firstByte) {
+            this.commandMode = value === $151fddc18046f076$var$SSD1306_MODE_CMD;
+            this.firstByte = false;
+            return value === $151fddc18046f076$var$SSD1306_MODE_CMD || value === $151fddc18046f076$var$SSD1306_MODE_DATA;
+        }
+        if (this.commandMode) this.processCommand(value);
+        else this.processData(value);
+        return true;
+    }
+    processCommand(value) {
+        this.currentCommand[this.currentCommandIndex] = value;
+        if (!this.currentCommandIndex) this.currentCommandLength = 1 + ($151fddc18046f076$var$multiByteCommands[value] || 0);
+        this.currentCommandIndex++;
+        if (this.currentCommandIndex < this.currentCommandLength) // Wait for the next command byte
+        return;
+        const commandCode = this.currentCommand[0];
+        let autoUpdate = false;
+        switch(commandCode){
+            case $151fddc18046f076$var$CMD_SET_CONTRAST:
+                this.contrast = this.currentCommand[1];
+                autoUpdate = true;
+                break;
+            case $151fddc18046f076$var$CMD_DISPLAY_OFF:
+                this.displayOn = false;
+                this.updated = true;
+                break;
+            case $151fddc18046f076$var$CMD_DISPLAY_ON:
+                this.displayOn = true;
+                this.updated = true;
+                break;
+            case $151fddc18046f076$var$CMD_NORMAL_DISPLAY:
+                this.invert = false;
+                autoUpdate = true;
+                break;
+            case $151fddc18046f076$var$CMD_INVERT_DISPLAY:
+                this.invert = true;
+                autoUpdate = true;
+                break;
+            case $151fddc18046f076$var$CMD_NOP:
+                break;
+            case $151fddc18046f076$var$CMD_MEMORY_MODE:
+                this.memoryMode = this.currentCommand[1] & 0x3;
+                break;
+            case $151fddc18046f076$var$CMD_COLUMN_ADDR:
+                this.activeColumn = this.columnStart;
+                this.columnStart = this.currentCommand[1] & 0x7f;
+                this.columnEnd = this.currentCommand[2] & 0x7f;
+                break;
+            case $151fddc18046f076$var$CMD_PAGE_ADDR:
+                this.activePage = this.pageStart;
+                this.pageStart = this.currentCommand[1] & 0x7;
+                this.pageEnd = this.currentCommand[2] & 0x7;
+                break;
+            case $151fddc18046f076$var$CMD_DEACTIVATE_SCROLL:
+                this.scrollOffset = 0;
+                this.scrollActive = false;
+                break;
+            case $151fddc18046f076$var$CMD_ACTIVATE_SCROLL:
+                this.scrollActive = true;
+                this.calculateNextScroll();
+                break;
+            case $151fddc18046f076$var$CMD_RIGHT_HORIZONTAL_SCROLL:
+            case $151fddc18046f076$var$CMD_LEFT_HORIZONTAL_SCROLL:
+                this.scrollVertical = false;
+                this.scrollRight = commandCode === $151fddc18046f076$var$CMD_RIGHT_HORIZONTAL_SCROLL;
+                this.scrollStartPage = this.currentCommand[2] & 0x7;
+                this.scrollSpeed = this.currentCommand[3] & 0x7;
+                this.scrollEndPage = this.currentCommand[4] & 0x7;
+                break;
+            case $151fddc18046f076$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL:
+            case $151fddc18046f076$var$CMD_VERTICAL_AND_LEFT_HORIZONTAL_SCROLL:
+                this.scrollRight = commandCode === $151fddc18046f076$var$CMD_VERTICAL_AND_RIGHT_HORIZONTAL_SCROLL;
+                this.scrollStartPage = this.currentCommand[2] & 0x7;
+                this.scrollSpeed = this.currentCommand[3] & 0x7;
+                this.scrollEndPage = this.currentCommand[4] & 0x7;
+                this.verticalOffset = this.currentCommand[5] & 0x3f;
+                this.scrollVertical = this.verticalOffset > 0;
+                break;
+            case $151fddc18046f076$var$CMD_SET_DISPLAY_CLOCK_DIV:
+                this.clockDivider = 1 + (this.currentCommand[1] & 0xf);
+                break;
+            case $151fddc18046f076$var$CMD_SET_PRECHARGE:
+                this.phase1 = this.currentCommand[1] & 0xf;
+                this.phase2 = this.currentCommand[1] >> 4 & 0xf;
+                break;
+            case $151fddc18046f076$var$CMD_CHARGE_PUMP:
+            case $151fddc18046f076$var$CMD_SET_DISPLAY_OFFSET:
+            case $151fddc18046f076$var$CMD_SET_MULTIPLEX:
+            case $151fddc18046f076$var$CMD_COM_SCAN_INC:
+            case $151fddc18046f076$var$CMD_COM_SCAN_DEC:
+            case $151fddc18046f076$var$CMD_SET_PRECHARGE:
+            case $151fddc18046f076$var$CMD_SET_COM_PINS:
+            case $151fddc18046f076$var$CMD_SET_VCOM_DESELECT:
+            case $151fddc18046f076$var$CMD_SEG_REMAP_OFF:
+            case $151fddc18046f076$var$CMD_SEG_REMAP_ON:
+            case $151fddc18046f076$var$CMD_SET_VERTICAL_SCROLL_AREA:
+            case $151fddc18046f076$var$CMD_DISPLAY_ALL_ON:
+            case $151fddc18046f076$var$CMD_DISPLAY_ALL_ON_RESUME:
+                break;
+            default:
+                if (commandCode <= 0x0f) {
+                    this.activeColumn = this.activeColumn & 0xf0 | commandCode;
+                    break;
+                }
+                if (commandCode >= 0x10 && commandCode <= 0x1f) {
+                    this.activeColumn = this.activeColumn & 0x0f | (commandCode & 0x0f) << 4;
+                    break;
+                }
+                if (commandCode >= 0x40 && commandCode <= 0x7f) {
+                    this.startLine = commandCode & 0x3f;
+                    autoUpdate = true;
+                    break;
+                }
+                if (commandCode >= 0xb0 && commandCode <= 0xb7) {
+                    this.activePage = commandCode & 0x7;
+                    break;
+                }
+                console.warn('Unknown SSD1306 Command', commandCode.toString(16), this.currentCommand.slice(1, this.currentCommandIndex));
+        }
+        if (autoUpdate && this.displayOn) this.updated = true;
+        // Reset command buffer index, ready to read the next command
+        this.currentCommandIndex = 0;
+    }
+    processData(value) {
+        const target = this.activePage * this.width + this.activeColumn;
+        this.pixels[target] = value;
+        // Memory modes are explained in pages 34-35 of the datasheet,
+        // and determine how the order of writing the pixels to the
+        // display RAM.
+        switch(this.memoryMode){
+            case $151fddc18046f076$var$MEM_MODE_HORIZONTAL_ADDRESSING:
+                this.activeColumn++;
+                if (this.activeColumn > this.columnEnd) {
+                    this.activeColumn = this.columnStart;
+                    this.activePage++;
+                    if (this.activePage > this.pageEnd) this.activePage = this.pageStart;
+                }
+                break;
+            case $151fddc18046f076$var$MEM_MODE_VERTICAL_ADDRESSING:
+                this.activePage++;
+                if (this.activePage > this.pageEnd) {
+                    this.activePage = this.pageStart;
+                    this.activeColumn++;
+                    if (this.activeColumn > this.columnEnd) this.activeColumn = this.columnStart;
+                }
+                break;
+            case $151fddc18046f076$var$MEM_MODE_PAGE_ADDRESSING:
+            default:
+                this.activeColumn++;
+                if (this.activeColumn > this.width) {
+                    this.activeColumn = 0;
+                    this.activePage++;
+                }
+                break;
+        }
+        this.updated = true;
+    }
+    i2cDisconnect() {}
+    scroll() {
+        // TODO clock
+        const pageSize = this.width;
+        for(let page = this.scrollStartPage; page <= this.scrollEndPage; page++){
+            const pageStart = page * pageSize;
+            if (this.scrollRight) {
+                const last = this.pixels[pageStart + pageSize - 1];
+                this.pixels.set(this.pixels.slice(pageStart, pageStart + pageSize - 1), pageStart + 1);
+                this.pixels[pageStart] = last;
+            } else {
+                const first = this.pixels[pageStart];
+                this.pixels.set(this.pixels.slice(pageStart + 1, pageStart + pageSize), pageStart);
+                this.pixels[pageStart + pageSize - 1] = first;
+            }
+            this.updated = true;
+        }
+        if (this.scrollVertical) this.scrollOffset = (this.scrollOffset + this.verticalOffset) % this.height;
+    }
+    get scrollFrameTime() {
+        return 1000 * $151fddc18046f076$var$scrollSpeeds[this.scrollSpeed] / this.frameFrequency;
+    }
+    calculateNextScroll() {
+        this.nextScrollTime = this.cpuMillis() + this.scrollFrameTime;
+    }
+    get frameFrequency() {
+        // Taken from section 8.3 (page 22) of the datasheet
+        const K = this.phase1 + this.phase2 + 50;
+        return $151fddc18046f076$var$fOsc / (this.clockDivider * K * (1 + this.multiplexRatio));
+    }
+}
+
+
+
+const $2d8917e86023b1fe$var$ZERO_HIGH = 400 // ±150ns
+;
+const $2d8917e86023b1fe$var$ONE_HIGH = 800 // ±150ns
+;
+const $2d8917e86023b1fe$var$ZERO_LOW = 850 // ±150ns
+;
+const $2d8917e86023b1fe$var$ONE_LOW = 450 // ±150ns
+;
+const $2d8917e86023b1fe$var$MARGIN = 160 // 160 gives extra margin for FastLED
+;
+const $2d8917e86023b1fe$var$RESET_TIME = 50000;
+class $2d8917e86023b1fe$export$e1e1654c63a0eb5 {
+    constructor(numPixels = 0){
+        this.numPixels = numPixels;
+        this.pixels = new Uint32Array(this.numPixels);
+        this.pixelIndex = 0;
+        this.currentValue = 0;
+        this.bitIndex = 0;
+        this.lastState = (0, $12dded1feaa73920$export$b745cd59055324b1).Input;
+        this.lastTimestamp = 0;
+        this.detectZero = false;
+        this.detectOne = false;
+        this.overflow = false;
+        this.updated = true;
+    }
+    feedValue(pinState, cpuNanos) {
+        if (pinState !== this.lastState) {
+            const delta = cpuNanos - this.lastTimestamp;
+            if (!this.overflow && (this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).High || this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).InputPullUp)) {
+                if (delta >= $2d8917e86023b1fe$var$ZERO_HIGH - $2d8917e86023b1fe$var$MARGIN && delta <= $2d8917e86023b1fe$var$ZERO_HIGH + $2d8917e86023b1fe$var$MARGIN) this.detectZero = true;
+                if (delta >= $2d8917e86023b1fe$var$ONE_HIGH - $2d8917e86023b1fe$var$MARGIN && delta <= $2d8917e86023b1fe$var$ONE_HIGH + $2d8917e86023b1fe$var$MARGIN) this.detectOne = true;
+                if (pinState === (0, $12dded1feaa73920$export$b745cd59055324b1).Low) this.checkLastBit();
+            }
+            if (this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).Low) {
+                if (this.detectZero && delta >= $2d8917e86023b1fe$var$ZERO_LOW - $2d8917e86023b1fe$var$MARGIN) this.feedBit(0);
+                else if (this.detectOne && delta >= $2d8917e86023b1fe$var$ONE_LOW - $2d8917e86023b1fe$var$MARGIN) this.feedBit(1);
+                if (delta >= $2d8917e86023b1fe$var$RESET_TIME) this.resetState();
+                this.detectZero = false;
+                this.detectOne = false;
+            }
+            this.lastState = pinState;
+            this.lastTimestamp = cpuNanos;
+        }
+    }
+    checkLastBit() {
+        // For the last bit in transmission, we might not detect the LOW period, as the signal
+        // may not go back HIGH for a long time. Thus, we update the LED based on the predicted
+        // value of the last bit
+        if (this.bitIndex === 23) {
+            this.pixels[this.pixelIndex] = this.currentValue | (this.detectOne ? 1 : 0);
+            this.updated = true;
+        }
+    }
+    feedBit(value) {
+        if (value) this.currentValue |= 1 << 23 - this.bitIndex;
+        this.bitIndex++;
+        if (this.bitIndex === 24) {
+            this.pixels[this.pixelIndex++] = this.currentValue;
+            this.updated = true;
+            this.bitIndex = 0;
+            this.currentValue = 0;
+        }
+        if (this.pixelIndex >= this.numPixels) this.overflow = true;
+    }
+    resetState() {
+        this.detectZero = false;
+        this.detectOne = false;
+        this.overflow = false;
+        this.bitIndex = 0;
+        this.currentValue = 0;
+        this.pixelIndex = 0;
+    }
+    update(cpuNanos) {
+        let result = null;
+        if (this.updated) {
+            const delta = cpuNanos - this.lastTimestamp;
+            if (!this.overflow && this.bitIndex === 23 && this.detectZero && this.lastState === (0, $12dded1feaa73920$export$b745cd59055324b1).Low && delta >= $2d8917e86023b1fe$var$ZERO_LOW - $2d8917e86023b1fe$var$MARGIN) this.pixels[this.pixelIndex] = this.currentValue;
+            result = this.pixels;
+            this.updated = false;
+        }
+        return result;
+    }
+}
+
+
 
 
 // Instances of controllers
@@ -24067,7 +24248,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         const NeoMatrix = Array.from(container?.querySelectorAll('wokwi-neopixel-matrix') || []);
         const NeoMatrixController = [];
         NeoMatrix.forEach((matrix)=>{
-            NeoMatrixController.push(new (0, $d584820596a6d1a3$export$e1e1654c63a0eb5)(matrix.cols * matrix.rows));
+            NeoMatrixController.push(new (0, $2d8917e86023b1fe$export$e1e1654c63a0eb5)(matrix.cols * matrix.rows));
         });
         // Set up the SSD1306
         const SSD1306 = container?.querySelector('wokwi-ssd1306') || null;
@@ -24166,12 +24347,12 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         if (SSD1306 || lcd1602 || ds1307) {
             i2cBus = new (0, $96106803a6abb79d$export$63e3c8dfe1f20173)(runner.twi);
             if (SSD1306) {
-                ssd1306Controller = new (0, $80a2d79702959753$export$4e603223a90213cc)(cpuMillis);
+                ssd1306Controller = new (0, $151fddc18046f076$export$4e603223a90213cc)(cpuMillis);
                 i2cBus.registerDevice(0x3d, ssd1306Controller);
             }
             if (lcd1602) {
-                lcd1602Controller = new (0, $47ee68282ac4f23a$export$c3787bd0c90a66b8)(cpuMillis);
-                i2cBus.registerDevice((0, $47ee68282ac4f23a$export$dd8dc45f6c3d9010), lcd1602Controller);
+                lcd1602Controller = new (0, $ec32cef1cc338d6b$export$c3787bd0c90a66b8)(cpuMillis);
+                i2cBus.registerDevice((0, $ec32cef1cc338d6b$export$dd8dc45f6c3d9010), lcd1602Controller);
             }
             if (ds1307) {
                 ds1307Controller = new (0, $497caf50a54906b7$export$fba8eb9ee18edd0a)(cpuMillis);
@@ -24250,99 +24431,95 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
 window['AVR8js'] = $382e02c9bbd5d50b$export$9f13ab6af83f071c;
 
 
-
-
-</script>
-
-    <script>function disabled(bool) {
+function $56a0b18e519895ee$var$disabled(bool) {
     document.getElementById("send").disabled = bool;
     document.getElementById("stop").disabled = bool;
     document.getElementById("stdin").disabled = bool;
 }
-function send() {
+function $56a0b18e519895ee$var$send() {
     const input = document.getElementById("stdin");
     if (window.runner) {
         const value = input?.value || "";
-        toTerminal(value + "\n");
+        $56a0b18e519895ee$var$toTerminal(value + "\n");
         // end the line like the Arduino Serial Monitor does
         window.runner.serial(value + "\n");
     }
     input.value = "";
 }
 // edrys-Lite passes "" for a module without config
-function config() {
+function $56a0b18e519895ee$var$config() {
     const config = Edrys.module?.config;
     return typeof config === "object" && config || {};
 }
 // the message subject the simulator runs code from
-function executeSubject() {
-    return config().execute || "execute";
+function $56a0b18e519895ee$var$executeSubject() {
+    return $56a0b18e519895ee$var$config().execute || "execute";
 }
-let state = "loading";
+let $56a0b18e519895ee$var$state = "loading";
 // kind is the badge colour: on, off or wait
-function setStatus(name, kind) {
-    state = name;
+function $56a0b18e519895ee$var$setStatus(name, kind) {
+    $56a0b18e519895ee$var$state = name;
     const badge = document.getElementById("status");
     badge.textContent = name;
     badge.className = "badge " + kind;
 }
-function stop() {
+function $56a0b18e519895ee$var$stop() {
     // a stop during compiling drops the compile, so it ends that too
-    const active = window.runner || state === "compiling";
+    const active = window.runner || $56a0b18e519895ee$var$state === "compiling";
     if (window.runner) {
         window.runner.stop();
         window.runner = null;
-        toTerminal("\nexecution stopped");
-        disabled(true);
+        $56a0b18e519895ee$var$toTerminal("\nexecution stopped");
+        $56a0b18e519895ee$var$disabled(true);
     }
-    if (active) setStatus("stopped", "wait");
+    if (active) $56a0b18e519895ee$var$setStatus("stopped", "wait");
 }
 // Message that stops the simulation on every peer of the room (with synchronize)
-const STOP_SUBJECT = "avr8js-stop";
+const $56a0b18e519895ee$var$STOP_SUBJECT = "avr8js-stop";
 // The stop button: with synchronize, Stop is shared like Run, and the
 // stored sketch is removed so nobody restarts it on reload or join.
-function stopClicked() {
-    if (config().synchronize === true) {
-        Edrys.clearState(sketchKey());
+function $56a0b18e519895ee$var$stopClicked() {
+    if ($56a0b18e519895ee$var$config().synchronize === true) {
+        Edrys.clearState($56a0b18e519895ee$var$sketchKey());
         // the body names the subject, in case several simulators share a room
-        Edrys.sendMessage(STOP_SUBJECT, executeSubject());
+        Edrys.sendMessage($56a0b18e519895ee$var$STOP_SUBJECT, $56a0b18e519895ee$var$executeSubject());
     }
-    uploads++ // drops a compile that is still running
+    $56a0b18e519895ee$var$uploads++ // drops a compile that is still running
     ;
-    stop();
+    $56a0b18e519895ee$var$stop();
 }
 // Counts uploads, so a compile that a newer upload overtook is dropped
 // instead of starting a second simulation next to the newer one.
-let uploads = 0;
-async function compile(sketch) {
-    const upload = ++uploads;
-    if (window.runner) stop();
-    toTerminal("\nstart compiling ...");
-    setStatus("compiling", "wait");
+let $56a0b18e519895ee$var$uploads = 0;
+async function $56a0b18e519895ee$var$compile(sketch) {
+    const upload = ++$56a0b18e519895ee$var$uploads;
+    if (window.runner) $56a0b18e519895ee$var$stop();
+    $56a0b18e519895ee$var$toTerminal("\nstart compiling ...");
+    $56a0b18e519895ee$var$setStatus("compiling", "wait");
     let hex;
     try {
-        hex = await window["AVR8js"].build(sketch);
+        hex = await (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c).build(sketch);
     } catch (e) {
-        if (upload === uploads) {
-            toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
-            setStatus("error", "off");
+        if (upload === $56a0b18e519895ee$var$uploads) {
+            $56a0b18e519895ee$var$toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
+            $56a0b18e519895ee$var$setStatus("error", "off");
         }
         return;
     }
-    if (upload !== uploads) return;
+    if (upload !== $56a0b18e519895ee$var$uploads) return;
     if (hex.stderr) {
-        toTerminal(hex.stderr, false, true);
-        setStatus("error", "off");
+        $56a0b18e519895ee$var$toTerminal(hex.stderr, false, true);
+        $56a0b18e519895ee$var$setStatus("error", "off");
         return;
     }
-    toTerminal(hex.stdout, true, true);
+    $56a0b18e519895ee$var$toTerminal(hex.stdout, true, true);
     if (hex.hex) {
-        disabled(false);
-        window.runner = window["AVR8js"].execute(hex.hex, toTerminal);
-        setStatus("running", "on");
+        $56a0b18e519895ee$var$disabled(false);
+        window.runner = (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c).execute(hex.hex, $56a0b18e519895ee$var$toTerminal);
+        $56a0b18e519895ee$var$setStatus("running", "on");
     } else {
         window.runner = null;
-        setStatus("error", "off");
+        $56a0b18e519895ee$var$setStatus("error", "off");
     }
 }
 // Output comes from other peers' sketches and the compiler, so it is
@@ -24350,296 +24527,110 @@ async function compile(sketch) {
 // Serial output arrives byte by byte, so it is collected and written
 // once per frame. Only the newest TERMINAL_LIMIT characters are kept,
 // so a sketch that prints forever doesn't grow the page without limit.
-const TERMINAL_LIMIT = 100000;
-let terminalLength = 0;
-let pending = "";
-let flushScheduled = false;
-function toTerminal(output, ok = true, clear = false) {
+const $56a0b18e519895ee$var$TERMINAL_LIMIT = 100000;
+let $56a0b18e519895ee$var$terminalLength = 0;
+let $56a0b18e519895ee$var$pending = "";
+let $56a0b18e519895ee$var$flushScheduled = false;
+function $56a0b18e519895ee$var$toTerminal(output, ok = true, clear = false) {
     const terminal = document.getElementById("stdout");
     terminal.querySelector(".hint")?.remove();
     if (clear) {
-        pending = "";
+        $56a0b18e519895ee$var$pending = "";
         terminal.textContent = "";
-        terminalLength = 0;
+        $56a0b18e519895ee$var$terminalLength = 0;
     }
     if (ok) {
-        pending += output;
+        $56a0b18e519895ee$var$pending += output;
         // a hidden tab gets no frames, so keep the buffer bounded too
-        if (pending.length > 2 * TERMINAL_LIMIT) pending = pending.slice(-TERMINAL_LIMIT);
-        if (!flushScheduled) {
-            flushScheduled = true;
-            requestAnimationFrame(flushTerminal);
+        if ($56a0b18e519895ee$var$pending.length > 2 * $56a0b18e519895ee$var$TERMINAL_LIMIT) $56a0b18e519895ee$var$pending = $56a0b18e519895ee$var$pending.slice(-$56a0b18e519895ee$var$TERMINAL_LIMIT);
+        if (!$56a0b18e519895ee$var$flushScheduled) {
+            $56a0b18e519895ee$var$flushScheduled = true;
+            requestAnimationFrame($56a0b18e519895ee$var$flushTerminal);
         }
         return;
     }
     // keep the order: earlier output first, then the error
-    flushTerminal();
+    $56a0b18e519895ee$var$flushTerminal();
     const span = document.createElement("span");
     span.className = "error";
     span.textContent = output;
     terminal.append(span);
-    terminalLength += output.length;
-    trimTerminal(terminal);
+    $56a0b18e519895ee$var$terminalLength += output.length;
+    $56a0b18e519895ee$var$trimTerminal(terminal);
     terminal.scrollTo(0, terminal.scrollHeight);
 }
-function flushTerminal() {
-    flushScheduled = false;
-    if (!pending) return;
+function $56a0b18e519895ee$var$flushTerminal() {
+    $56a0b18e519895ee$var$flushScheduled = false;
+    if (!$56a0b18e519895ee$var$pending) return;
     const terminal = document.getElementById("stdout");
-    terminal.append(pending);
-    terminalLength += pending.length;
-    pending = "";
-    trimTerminal(terminal);
+    terminal.append($56a0b18e519895ee$var$pending);
+    $56a0b18e519895ee$var$terminalLength += $56a0b18e519895ee$var$pending.length;
+    $56a0b18e519895ee$var$pending = "";
+    $56a0b18e519895ee$var$trimTerminal(terminal);
     terminal.scrollTo(0, terminal.scrollHeight);
 }
 // drop the oldest output beyond TERMINAL_LIMIT characters
-function trimTerminal(terminal) {
-    let excess = terminalLength - TERMINAL_LIMIT;
+function $56a0b18e519895ee$var$trimTerminal(terminal) {
+    let excess = $56a0b18e519895ee$var$terminalLength - $56a0b18e519895ee$var$TERMINAL_LIMIT;
     while(excess > 0 && terminal.firstChild){
         const node = terminal.firstChild;
         const length = node.textContent.length;
         if (length <= excess) {
             node.remove();
-            terminalLength -= length;
+            $56a0b18e519895ee$var$terminalLength -= length;
             excess -= length;
         } else {
             if (node.nodeType === Node.TEXT_NODE) node.deleteData(0, excess);
             else node.textContent = node.textContent.slice(excess);
-            terminalLength -= excess;
+            $56a0b18e519895ee$var$terminalLength -= excess;
             excess = 0;
         }
     }
 }
 Edrys.onReady(()=>{
     console.log("AVR8js simulator loaded ...");
-    const content = config().modules || "";
+    const content = $56a0b18e519895ee$var$config().modules || "";
     if (content.trim()) document.getElementById("modules").innerHTML = content;
     else document.getElementById("modules").innerHTML = '<p class="hint empty">No circuit configured: add Wokwi parts in the module settings (<code>modules</code>).</p>';
     document.getElementById("stdout").querySelector(".hint")?.replaceChildren("Waiting for code from an editor module (subject ", Object.assign(document.createElement("code"), {
-        textContent: executeSubject()
+        textContent: $56a0b18e519895ee$var$executeSubject()
     }), ")\u2026");
-    setStatus("idle", "wait");
-    const inputElement = document.getElementById('stdin');
-    inputElement.addEventListener('keydown', function(event) {
-        if (event.key === "Enter") // Call your function here
-        send();
+    $56a0b18e519895ee$var$setStatus("idle", "wait");
+    document.getElementById("stdin").addEventListener("keydown", (event)=>{
+        if (event.key === "Enter") $56a0b18e519895ee$var$send();
     });
+    document.getElementById("send").addEventListener("click", $56a0b18e519895ee$var$send);
+    document.getElementById("stop").addEventListener("click", $56a0b18e519895ee$var$stopClicked);
     // with synchronize, pick up the program the room is running (it starts at time 0)
-    if (config().synchronize === true) {
-        const sketch = Edrys.getState(sketchKey(), "Value");
-        if (sketch) whenLoaded(()=>compile(sketch));
+    if ($56a0b18e519895ee$var$config().synchronize === true) {
+        const sketch = Edrys.getState($56a0b18e519895ee$var$sketchKey(), "Value");
+        if (sketch) $56a0b18e519895ee$var$compile(sketch);
     }
 });
 // Room state is shared by all modules in the room, so the key names
 // the module and the subject it listens to.
-function sketchKey() {
-    return "avr8js:" + executeSubject();
+function $56a0b18e519895ee$var$sketchKey() {
+    return "avr8js:" + $56a0b18e519895ee$var$executeSubject();
 }
-// window.AVR8js comes from the bundled module script
-function whenLoaded(fn) {
-    if (window["AVR8js"]) fn();
-    else window.addEventListener("load", fn, {
-        once: true
-    });
-}
-Edrys.onMessage(({ from, subject, body, module })=>{
-    if (subject === executeSubject()) {
+Edrys.onMessage(({ from: from, subject: subject, body: body, module: module })=>{
+    if (subject === $56a0b18e519895ee$var$executeSubject()) {
         // without synchronize, only run code this peer sent itself
-        if (config().synchronize !== true && from !== Edrys.username) return;
+        if ($56a0b18e519895ee$var$config().synchronize !== true && from !== Edrys.username) return;
         // the sender keeps the upload in the room for peers who join or reload later
-        if (config().synchronize === true && from === Edrys.username) Edrys.getState(sketchKey(), "Value", body);
-        compile(body);
-    } else if (subject === STOP_SUBJECT && module === Edrys.module.url && body === executeSubject() && config().synchronize === true && from !== Edrys.username // the sender stopped already
+        if ($56a0b18e519895ee$var$config().synchronize === true && from === Edrys.username) Edrys.getState($56a0b18e519895ee$var$sketchKey(), "Value", body);
+        $56a0b18e519895ee$var$compile(body);
+    } else if (subject === $56a0b18e519895ee$var$STOP_SUBJECT && module === Edrys.module.url && body === $56a0b18e519895ee$var$executeSubject() && $56a0b18e519895ee$var$config().synchronize === true && from !== Edrys.username // the sender stopped already
     ) {
-        uploads++;
-        stop();
+        $56a0b18e519895ee$var$uploads++;
+        $56a0b18e519895ee$var$stop();
     }
 }, // promiscuous: also receive messages sent by other modules (the editor)
 true);
 
+
+
+
 </script>
-
-    <style>:root {
-  --terminal-background: #fff;
-  --terminal-border: #0003;
-  --terminal-text: #2b2b2b;
-  --terminal-error: #b8384a;
-  --terminal-scrollbar: #c8c8c8;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --terminal-background: #1a1b26;
-    --terminal-border: #1a1b26;
-    --terminal-text: #c0caf5;
-    --terminal-error: #f7768e;
-    --terminal-scrollbar: #414868;
-  }
-}
-
-body {
-  box-sizing: border-box;
-  flex-direction: column;
-  max-width: none;
-  height: 100vh;
-  margin: 0;
-  padding: 1rem .5rem .5rem;
-  display: flex;
-}
-
-#header {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .5rem 1rem;
-  margin-bottom: .5rem;
-  display: flex;
-}
-
-.title {
-  font-size: 1.4em;
-  line-height: 1;
-}
-
-.status {
-  font-size: small;
-}
-
-.status > .label {
-  opacity: .7;
-}
-
-.status .badge {
-  color: #fff;
-  border-radius: 999px;
-  padding: .1rem .5rem;
-  font-weight: bold;
-  display: inline-block;
-}
-
-.status .badge.on {
-  background-color: #1f7a45;
-}
-
-.status .badge.off {
-  background-color: #b8384a;
-}
-
-.status .badge.wait {
-  background-color: #6b6b6b;
-}
-
-.controls {
-  margin-left: auto;
-  font-size: small;
-}
-
-.controls button {
-  white-space: nowrap;
-  margin: 0;
-}
-
-#stop:enabled {
-  color: #fff;
-  background: #b8384a;
-}
-
-#stop:enabled:hover {
-  background: #9e2f3f;
-}
-
-.hint {
-  opacity: .7;
-}
-
-#modules .empty {
-  border: 1px dashed;
-  border-radius: 6px;
-  margin: 0 0 .5rem;
-  padding: .75rem;
-}
-
-#sensors:empty {
-  display: none;
-}
-
-#sensors {
-  margin-bottom: .5rem;
-}
-
-.slider {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .25rem .75rem;
-  margin: 0;
-  display: flex;
-}
-
-.slider input {
-  flex: 8rem;
-  min-width: 0;
-  margin: 0;
-}
-
-.slider output {
-  text-align: right;
-  min-width: 7ch;
-  font-family: monospace;
-}
-
-#stdout {
-  border: 1px solid var(--terminal-border);
-  background: var(--terminal-background);
-  min-height: 6rem;
-  color: var(--terminal-text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  scrollbar-width: thin;
-  scrollbar-color: var(--terminal-scrollbar) var(--terminal-background);
-  border-radius: 6px;
-  flex: auto;
-  padding: .5rem;
-  font-family: monospace;
-  overflow: auto;
-}
-
-#stdout code {
-  color: inherit;
-  background: none;
-  padding: 0;
-  font-weight: bold;
-}
-
-#stdout .error {
-  color: var(--terminal-error);
-}
-
-#input {
-  gap: .5rem;
-  margin-top: .5rem;
-  display: flex;
-}
-
-#input input {
-  flex: 1;
-  min-width: 0;
-  margin: 0;
-}
-
-#input button {
-  white-space: nowrap;
-  margin: 0;
-}
-
-.visually-hidden {
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-  width: 1px;
-  height: 1px;
-  position: absolute;
-  overflow: hidden;
-}
-</style>
-
 </head>
 
 <body>
@@ -24650,7 +24641,7 @@ body {
             <span id="status" class="badge wait">loading</span>
         </span>
         <span class="controls">
-            <button id="stop" onclick="stopClicked()" disabled="">
+            <button id="stop" disabled="">
                 <span class="oi" data-glyph="media-stop" aria-hidden="true"></span> Stop
             </button>
         </span>
@@ -24664,7 +24655,7 @@ body {
     <div id="input">
         <label class="visually-hidden" for="stdin">Serial input</label>
         <input id="stdin" type="text" placeholder="Serial input" disabled="">
-        <button id="send" onclick="send()" disabled="">
+        <button id="send" disabled="">
             <span class="oi" data-glyph="chevron-right" aria-hidden="true"></span> Send
         </button>
     </div>

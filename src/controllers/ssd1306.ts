@@ -7,7 +7,7 @@
  * at https://wokwi.com/
  */
 
-import { I2CDevice } from './i2c-bus'
+import { I2CDevice } from '../i2c-bus'
 
 // Datasheet: https://cdn-shop.adafruit.com/datasheets/SSD1306.pdf
 

@@ -5,7 +5,7 @@
  * Copyright (C) 2019, Uri Shaked
  * Copyright (C) 2020, Anderson Costa
  */
-import { I2CDevice } from './i2c-bus'
+import { I2CDevice } from '../i2c-bus'
 import { LCD1602Element } from '@wokwi/elements'
 
 export const LCD1602_ADDR = 0x27
