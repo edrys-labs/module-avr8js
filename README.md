@@ -2,11 +2,21 @@
 
 An AVR8js-based Arduino simulator for [edrys-Lite](https://github.com/edrys-labs/edrys-Lite). It emulates an ATmega328P (Arduino Uno) in the browser using [avr8js](https://github.com/wokwi/avr8js), with interactive Wokwi circuit components and no hardware required.
 
+![The simulator running a sketch: an LED, an NTC sensor with its temperature slider, and the serial output](screenshot.png)
+
 Import the module via:
 
 ```
 https://edrys-labs.github.io/module-avr8js/index.html
 ```
+
+It needs an editor module that sends Arduino code, such as
+[module-monaco-editor](https://github.com/edrys-labs/module-monaco-editor) or
+[module-blockly-duino-v2](https://github.com/edrys-labs/module-blockly-duino-v2).
+
+**Compiling:** sketches are compiled by Wokwi's build server `hexi.wokwi.com`. The module needs internet
+access, and the code students write is sent to that third-party server. Successful builds are cached per page,
+so sending the same sketch again doesn't compile it again.
 
 ---
 
@@ -17,7 +27,7 @@ The module accepts three configuration properties:
 | Property      | Type    | Description                                                                 | Default     |
 |---------------|---------|-----------------------------------------------------------------------------|-------------|
 | `modules`     | String  | HTML string of Wokwi circuit elements to display                            | `""`        |
-| `execute`     | String  | Edrys message topic the module listens on for code/hex                      | `"execute"` |
+| `execute`     | String  | Edrys message subject the module runs Arduino code from                     | `"execute"` |
 | `synchronize` | Boolean | Run code sent by any peer in the room on every peer in that room            | `false`     |
 
 By default, each peer runs only the code it sent itself: a student's upload starts only that student's
@@ -54,6 +64,19 @@ synchronize: false
   "synchronize": false
 }
 ```
+
+---
+
+## Using the Module
+
+- **Header:** the status badge shows `idle`, `compiling`, `running`, `stopped` or `error`. **Stop** (red while
+  a program runs) ends the simulation.
+- **Circuit:** the parts from `modules`. Without them, the module says where to configure the circuit. An NTC
+  sensor adds a temperature slider below the circuit while a program runs.
+- **Terminal:** before any code arrives, it says which subject it waits for. Then it shows the compiler output,
+  compile errors and the sketch's `Serial` output. Only the newest 100,000 characters are kept.
+- **Serial input:** Enter or **Send** sends the line to the sketch, ending it with `\n` as the Arduino Serial
+  Monitor does.
 
 ---
 
@@ -218,6 +241,8 @@ I2C address: `0x68`. Initializes to the current system time. Use the `DS1307RTC`
 | D8–D13 | PORTB (PB0–PB5) |
 | A0–A5 | PORTC (PC0–PC5) |
 
+Analog parts accept `A0`–`A5` or the Arduino numbers `14`–`19`.
+
 ---
 
 ## Example Configurations
@@ -372,8 +397,29 @@ modules: |
 
 ## How It Works
 
-1. An external editor module compiles Arduino code and publishes the hex on the `execute` topic (configurable).
-2. This module receives the hex, loads it into the AVR8js emulator, and starts a 16 MHz simulation loop.
-3. Wokwi components react to AVR pin state changes in real time (GPIO, PWM, I2C, SPI).
-4. Serial output (`Serial.print`) is displayed in the built-in terminal.
-5. Interactive components (button, potentiometer, temperature slider) inject input back into the simulation.
+1. An editor module sends the Arduino source as a message with the `execute` subject (configurable).
+2. This module sends it to `hexi.wokwi.com`, which compiles it and returns the hex (or the compile errors).
+3. The hex is loaded into the AVR8js emulator, which runs an ATmega328P at 16 MHz.
+4. Wokwi components react to pin changes in real time (GPIO, PWM, I2C).
+5. Serial output (`Serial.print`) is shown in the terminal.
+6. Interactive components (button, potentiometer, temperature slider) feed input back into the simulation.
+
+---
+
+## Development
+
+```bash
+npm install
+npm run build   # writes docs/index.html, which GitHub Pages serves
+npm run watch   # development server on http://localhost:3333
+```
+
+Edit `src/`, then run `npm run build` and commit `docs/` with the change. The end-to-end tests (Playwright,
+in a real edrys-Lite, with a fake compile server) live in the `edrys-module-tests` repository under
+`modules/module-avr8js`.
+
+---
+
+## License
+
+[MIT](LICENSE) © edrys-labs

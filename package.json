@@ -8,7 +8,10 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "André Dietrich",
-  "license": "ISC",
+  "contributors": [
+    "Jihad Hyadi"
+  ],
+  "license": "MIT",
   "devDependencies": {
     "@swc/helpers": "^0.5.23",
     "@wokwi/elements": "^1.9.2",
