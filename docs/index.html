@@ -23198,63 +23198,26 @@ class $497caf50a54906b7$export$fba8eb9ee18edd0a {
 }
 
 
-class $8d397629722cb67b$export$976f601a95fc6e2c {
+class $c63d65adc8105fd8$export$472062a354075cee {
     constructor(config, callbacks){
         this.config = config;
         this.callbacks = callbacks;
-        this.isDragging = false;
-        this.startX = 0;
-        this.startY = 0;
-        this.initialLeft = 0;
-        this.initialTop = 0;
-        this.documentListeners = new AbortController();
         this.container = this.createSliderElement();
-        this.setupDragFunctionality();
     }
     createSliderElement() {
-        // Create container
-        const container = document.createElement("div");
-        container.style.cssText = `
-      position: absolute;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: white;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      padding: 4px 8px;
-      font-family: Arial, sans-serif;
-      font-size: 12px;
-      z-index: 1000;
-      cursor: move;
-      user-select: none;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    `;
-        // Create slider input
+        const container = document.createElement("label");
+        container.className = "slider";
+        const label = document.createElement("span");
+        label.textContent = this.config.label;
         this.slider = document.createElement("input");
         this.slider.type = "range";
         this.slider.min = this.config.min.toString();
         this.slider.max = this.config.max.toString();
         this.slider.value = this.config.value.toString();
         this.slider.step = this.config.step.toString();
-        this.slider.style.cssText = `
-      width: ${this.config.width || 120}px;
-      height: 20px;
-      cursor: pointer;
-    `;
-        // Create display span
-        this.display = document.createElement("span");
-        this.display.style.cssText = `
-      min-width: 50px;
-      text-align: center;
-      font-weight: bold;
-      color: #0066cc;
-    `;
+        this.display = document.createElement("output");
         this.updateDisplay(this.config.value);
-        // Add elements to container
-        container.appendChild(this.slider);
-        container.appendChild(this.display);
-        // Setup slider event listener
+        container.append(label, this.slider, this.display);
         this.slider.addEventListener("input", ()=>{
             const value = parseFloat(this.slider.value);
             this.updateDisplay(value);
@@ -23263,67 +23226,7 @@ class $8d397629722cb67b$export$976f601a95fc6e2c {
         return container;
     }
     updateDisplay(value) {
-        this.display.textContent = `${value.toFixed(1)}${this.config.unit}`;
-    }
-    setupDragFunctionality() {
-        // Mouse events
-        this.container.addEventListener("mousedown", (e)=>{
-            // Don't start dragging if clicking on the slider itself
-            if (e.target.tagName === "INPUT") return;
-            this.startDrag(e.clientX, e.clientY);
-            e.preventDefault();
-        });
-        document.addEventListener("mousemove", (e)=>{
-            if (!this.isDragging) return;
-            this.updatePosition(e.clientX, e.clientY);
-        }, {
-            signal: this.documentListeners.signal
-        });
-        document.addEventListener("mouseup", ()=>{
-            this.isDragging = false;
-        }, {
-            signal: this.documentListeners.signal
-        });
-        // Touch events for mobile support
-        this.container.addEventListener("touchstart", (e)=>{
-            if (e.target.tagName === "INPUT") return;
-            if (e.touches.length === 1) {
-                const touch = e.touches[0];
-                this.startDrag(touch.clientX, touch.clientY);
-                e.preventDefault();
-            }
-        });
-        document.addEventListener("touchmove", (e)=>{
-            if (!this.isDragging || e.touches.length !== 1) return;
-            const touch = e.touches[0];
-            this.updatePosition(touch.clientX, touch.clientY);
-            e.preventDefault();
-        }, {
-            signal: this.documentListeners.signal
-        });
-        document.addEventListener("touchend", ()=>{
-            this.isDragging = false;
-        }, {
-            signal: this.documentListeners.signal
-        });
-    }
-    startDrag(clientX, clientY) {
-        this.isDragging = true;
-        this.startX = clientX;
-        this.startY = clientY;
-        const rect = this.container.getBoundingClientRect();
-        const parentRect = this.container.offsetParent?.getBoundingClientRect() || {
-            left: 0,
-            top: 0
-        };
-        this.initialLeft = rect.left - parentRect.left;
-        this.initialTop = rect.top - parentRect.top;
-    }
-    updatePosition(clientX, clientY) {
-        const deltaX = clientX - this.startX;
-        const deltaY = clientY - this.startY;
-        this.container.style.left = `${this.initialLeft + deltaX}px`;
-        this.container.style.top = `${this.initialTop + deltaY}px`;
+        this.display.textContent = `${value.toFixed(1)} ${this.config.unit}`;
     }
     setValue(value) {
         value = Math.max(this.config.min, Math.min(this.config.max, value));
@@ -23333,16 +23236,11 @@ class $8d397629722cb67b$export$976f601a95fc6e2c {
     getValue() {
         return parseFloat(this.slider.value);
     }
-    setPosition(left, top) {
-        this.container.style.left = `${left}px`;
-        this.container.style.top = `${top}px`;
-    }
     appendTo(parent) {
         parent.appendChild(this.container);
     }
     remove() {
-        this.documentListeners.abort();
-        if (this.container.parentNode) this.container.parentNode.removeChild(this.container);
+        this.container.remove();
     }
     getElement() {
         return this.container;
@@ -23364,8 +23262,7 @@ class $9cac5ab4c27a7045$export$e0bad4831cb237ba {
             value: 25,
             step: 0.1,
             unit: "\xb0C",
-            label: "Temperature",
-            width: 120
+            label: `Temperature ${sensor.getAttribute("pin")}`
         };
         // Create slider callbacks
         const sliderCallbacks = {
@@ -23377,20 +23274,8 @@ class $9cac5ab4c27a7045$export$e0bad4831cb237ba {
                 }
             }
         };
-        // Create the draggable slider
-        const slider = new (0, $8d397629722cb67b$export$976f601a95fc6e2c)(sliderConfig, sliderCallbacks);
-        // Position the slider above the sensor
-        const sensorRect = sensor.getBoundingClientRect();
-        const parentRect = sensor.offsetParent?.getBoundingClientRect() || {
-            left: 0,
-            top: 0
-        };
-        const left = sensorRect.left - parentRect.left;
-        const top = sensorRect.top - parentRect.top - 60;
-        slider.setPosition(left, top);
-        // Add to the same parent as the sensor
-        const parent = sensor.offsetParent || document.body;
-        slider.appendTo(parent);
+        const slider = new (0, $c63d65adc8105fd8$export$472062a354075cee)(sliderConfig, sliderCallbacks);
+        slider.appendTo(document.getElementById("sensors") || document.body);
         // Store sensor data
         const sensorData = {
             temperature: 25.0,
@@ -23751,14 +23636,25 @@ function send() {
     }
     input.value = "";
 }
+let state = "loading";
+// kind is the badge colour: on, off or wait
+function setStatus(name, kind) {
+    state = name;
+    const badge = document.getElementById("status");
+    badge.textContent = name;
+    badge.className = "badge " + kind;
+}
 function stop() {
     console.log("stop");
+    // a stop during compiling drops the compile, so it ends that too
+    const active = window.runner || state === "compiling";
     if (window.runner) {
         window.runner.stop();
         window.runner = null;
         toTerminal("\nexecution stopped");
         disabled(true);
     }
+    if (active) setStatus("stopped", "wait");
 }
 // Message that stops the simulation on every peer of the room (with synchronize)
 const STOP_SUBJECT = "avr8js-stop";
@@ -23781,23 +23677,32 @@ async function compile(sketch) {
     const upload = ++uploads;
     if (window.runner) stop();
     toTerminal("\nstart compiling ...");
+    setStatus("compiling", "wait");
     let hex;
     try {
         hex = await window["AVR8js"].build(sketch);
     } catch (e) {
-        if (upload === uploads) toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
+        if (upload === uploads) {
+            toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
+            setStatus("error", "off");
+        }
         return;
     }
     if (upload !== uploads) return;
     if (hex.stderr) {
         toTerminal(hex.stderr, false, true);
+        setStatus("error", "off");
         return;
     }
     toTerminal(hex.stdout, true, true);
     if (hex.hex) {
         disabled(false);
         window.runner = window["AVR8js"].execute(hex.hex, toTerminal);
-    } else window.runner = null;
+        setStatus("running", "on");
+    } else {
+        window.runner = null;
+        setStatus("error", "off");
+    }
 }
 // Output comes from other peers' sketches and the compiler, so it is
 // only ever added as text, never parsed as HTML.
@@ -23810,6 +23715,7 @@ let pending = "";
 let flushScheduled = false;
 function toTerminal(output, ok = true, clear = false) {
     const terminal = document.getElementById("stdout");
+    terminal.querySelector(".hint")?.remove();
     if (clear) {
         pending = "";
         terminal.textContent = "";
@@ -23867,7 +23773,12 @@ Edrys.onReady(()=>{
     console.log("AVR8js simulator loaded ...");
     let content = Edrys.module.config.modules || "";
     content += "\n\n" + (Edrys.module[Edrys.role.toLowerCase() + "Config"]?.modules || "");
-    document.getElementById("modules").innerHTML = content;
+    if (content.trim()) document.getElementById("modules").innerHTML = content;
+    else document.getElementById("modules").innerHTML = '<p class="hint empty">No circuit configured: add Wokwi parts in the module settings (<code>modules</code>).</p>';
+    document.getElementById("stdout").querySelector(".hint")?.replaceChildren("Waiting for code from an editor module (subject ", Object.assign(document.createElement("code"), {
+        textContent: Edrys.module.config?.execute || "execute"
+    }), ")\u2026");
+    setStatus("idle", "wait");
     const inputElement = document.getElementById("stdin");
     inputElement.addEventListener("keydown", function(event) {
         if (event.key === "Enter") // Call your function here
@@ -23911,64 +23822,214 @@ Edrys.onMessage(({ from, subject, body, module })=>{
 
 </script>
 
-    <style>#modules {
-  width: 100%;
-  height: 100px;
+    <style>:root {
+  --terminal-background: #fff;
+  --terminal-border: #0003;
+  --terminal-text: #2b2b2b;
+  --terminal-error: #b8384a;
+  --terminal-scrollbar: #c8c8c8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --terminal-background: #1a1b26;
+    --terminal-border: #1a1b26;
+    --terminal-text: #c0caf5;
+    --terminal-error: #f7768e;
+    --terminal-scrollbar: #414868;
+  }
+}
+
+body {
+  box-sizing: border-box;
+  flex-direction: column;
+  max-width: none;
+  height: 100vh;
+  margin: 0;
+  padding: 1rem .5rem .5rem;
+  display: flex;
+}
+
+#header {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem 1rem;
+  margin-bottom: .5rem;
+  display: flex;
+}
+
+.title {
+  font-size: 1.4em;
+  line-height: 1;
+}
+
+.status {
+  font-size: small;
+}
+
+.status > .label {
+  opacity: .7;
+}
+
+.status .badge {
+  color: #fff;
+  border-radius: 999px;
+  padding: .1rem .5rem;
+  font-weight: bold;
+  display: inline-block;
+}
+
+.status .badge.on {
+  background-color: #1f7a45;
+}
+
+.status .badge.off {
+  background-color: #b8384a;
+}
+
+.status .badge.wait {
+  background-color: #6b6b6b;
+}
+
+.controls {
+  margin-left: auto;
+  font-size: small;
+}
+
+.controls button {
+  white-space: nowrap;
+  margin: 0;
+}
+
+#stop:enabled {
+  color: #fff;
+  background: #b8384a;
+}
+
+#stop:enabled:hover {
+  background: #9e2f3f;
+}
+
+.hint {
+  opacity: .7;
+}
+
+#modules .empty {
+  border: 1px dashed;
+  border-radius: 6px;
+  margin: 0 0 .5rem;
+  padding: .75rem;
+}
+
+#sensors:empty {
+  display: none;
+}
+
+#sensors {
+  margin-bottom: .5rem;
+}
+
+.slider {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .25rem .75rem;
+  margin: 0;
+  display: flex;
+}
+
+.slider input {
+  flex: 8rem;
+  min-width: 0;
+  margin: 0;
+}
+
+.slider output {
+  text-align: right;
+  min-width: 7ch;
+  font-family: monospace;
 }
 
 #stdout {
+  border: 1px solid var(--terminal-border);
+  background: var(--terminal-background);
+  color: var(--terminal-text);
   white-space: pre-wrap;
-  color: #fff;
-  background-color: #000;
-  border: 1px solid #fff;
-  width: calc(100% - 1rem);
-  height: 15rem;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  scrollbar-color: var(--terminal-scrollbar) var(--terminal-background);
+  border-radius: 6px;
+  flex: auto;
+  min-height: 6rem;
   padding: .5rem;
+  font-family: monospace;
   overflow: auto;
 }
 
+#stdout code {
+  color: inherit;
+  background: none;
+  padding: 0;
+  font-weight: bold;
+}
+
 #stdout .error {
-  color: red;
+  color: var(--terminal-error);
 }
 
-#stdin {
-  width: calc(100% - 12.5rem);
+#input {
+  gap: .5rem;
   margin-top: .5rem;
-  display: inline;
+  display: flex;
 }
 
-#send {
-  width: 4.75rem;
-  margin-top: .5rem;
-  margin-right: 0;
-  display: inline;
+#input input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
 }
 
-#stop {
-  float: right;
-  width: 5.75rem;
-  margin-top: .5rem;
-  margin-right: 0;
-  display: inline;
+#input button {
+  white-space: nowrap;
+  margin: 0;
+}
+
+.visually-hidden {
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  width: 1px;
+  height: 1px;
+  position: absolute;
+  overflow: hidden;
 }
 </style>
 
 </head>
 
 <body>
-    <div id="terminal">
-        <div id="stdout">$ ...</div>
-
-        <button id="send" onclick="send()" disabled="">
-            >>
-        </button>
-        <input id="stdin" type="text" disabled="">
-
-        <button id="stop" onclick="stopClicked()" disabled="">
-            stop
-        </button>
+    <div id="header">
+        <span class="title">AVR8js</span>
+        <span class="status">
+            <span class="label">status:</span>
+            <span id="status" class="badge wait">loading</span>
+        </span>
+        <span class="controls">
+            <button id="stop" onclick="stopClicked()" disabled="">
+                <span class="oi" data-glyph="media-stop" aria-hidden="true"></span> Stop
+            </button>
+        </span>
     </div>
-    <div id="modules">
+
+    <div id="modules"></div>
+    <div id="sensors"></div>
+
+    <div id="stdout"><span class="hint">Loading…</span></div>
+
+    <div id="input">
+        <label class="visually-hidden" for="stdin">Serial input</label>
+        <input id="stdin" type="text" placeholder="Serial input" disabled="">
+        <button id="send" onclick="send()" disabled="">
+            <span class="oi" data-glyph="chevron-right" aria-hidden="true"></span> Send
+        </button>
     </div>
 </body>
 

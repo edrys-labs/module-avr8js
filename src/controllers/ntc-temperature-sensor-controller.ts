@@ -1,11 +1,11 @@
 import { NTCTemperatureSensorElement } from '@wokwi/elements'
-import { DraggableSlider, SliderConfig, SliderCallbacks } from './draggable-slider'
+import { Slider, SliderConfig, SliderCallbacks } from './slider'
 import { adcChannel } from '../pins'
 
 export class NTCTemperatureSensorController {
   private sensors: Map<NTCTemperatureSensorElement, {
     temperature: number;
-    slider: DraggableSlider;
+    slider: Slider;
   }> = new Map()
 
   constructor() {}
@@ -22,8 +22,7 @@ export class NTCTemperatureSensorController {
       value: 25,
       step: 0.1,
       unit: '°C',
-      label: 'Temperature',
-      width: 120
+      label: `Temperature ${sensor.getAttribute('pin')}`
     }
 
     // Create slider callbacks
@@ -37,20 +36,8 @@ export class NTCTemperatureSensorController {
       }
     }
 
-    // Create the draggable slider
-    const slider = new DraggableSlider(sliderConfig, sliderCallbacks)
-
-    // Position the slider above the sensor
-    const sensorRect = sensor.getBoundingClientRect()
-    const parentRect = sensor.offsetParent?.getBoundingClientRect() || { left: 0, top: 0 }
-    
-    const left = sensorRect.left - parentRect.left
-    const top = sensorRect.top - parentRect.top - 60
-    slider.setPosition(left, top)
-
-    // Add to the same parent as the sensor
-    const parent = (sensor.offsetParent as HTMLElement) || document.body
-    slider.appendTo(parent)
+    const slider = new Slider(sliderConfig, sliderCallbacks)
+    slider.appendTo(document.getElementById('sensors') || document.body)
 
     // Store sensor data
     const sensorData = {
