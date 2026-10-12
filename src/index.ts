@@ -65,6 +65,10 @@ const AVR8js = {
         },
         body: body,
       })
+      // throw before caching, so a retry asks the server again
+      if (!resp.ok) {
+        throw new Error(`it answered with HTTP ${resp.status}`)
+      }
       const rslt = await resp.json()
 
       window.__AVR8jsCache[body] = rslt

@@ -78,7 +78,14 @@
             }
 
             toTerminal("\nstart compiling ...")
-            const hex = await window["AVR8js"].build(sketch)
+
+            let hex
+            try {
+                hex = await window["AVR8js"].build(sketch)
+            } catch (e) {
+                toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false)
+                return
+            }
 
             if (hex.stderr) {
                 toTerminal(hex.stderr, false, true)

@@ -23486,6 +23486,8 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                 },
                 body: body
             });
+            // throw before caching, so a retry asks the server again
+            if (!resp.ok) throw new Error(`it answered with HTTP ${resp.status}`);
             const rslt = await resp.json();
             window.__AVR8jsCache[body] = rslt;
             return rslt;
@@ -23749,7 +23751,13 @@ function stop() {
 async function compile(sketch) {
     if (window.runner) stop();
     toTerminal("\nstart compiling ...");
-    const hex = await window["AVR8js"].build(sketch);
+    let hex;
+    try {
+        hex = await window["AVR8js"].build(sketch);
+    } catch (e) {
+        toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
+        return;
+    }
     if (hex.stderr) {
         toTerminal(hex.stderr, false, true);
         return;
