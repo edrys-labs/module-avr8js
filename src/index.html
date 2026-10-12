@@ -55,7 +55,8 @@
                 const value = input?.value || ""
 
                 toTerminal(value + "\n")
-                window.runner.serial(value)
+                // end the line like the Arduino Serial Monitor does
+                window.runner.serial(value + "\n")
             }
 
             input.value = ""
