@@ -96,6 +96,12 @@ const SENSORS: { [tag: string]: Sensor } = {
     ],
     shown: ['accelX', 'accelY', 'accelZ', 'rotationZ', 'temperature'],
   },
+  // slow motion, only with controls='speed:0.0005:0.05'
+  'avr-chart': {
+    name: 'chart',
+    controls: [{ attr: 'speed', label: 'Speed', min: 0.0001, max: 1, value: 1, step: 0.0001 }],
+    shown: [],
+  },
 }
 
 export const SENSOR_TAGS = Object.keys(SENSORS)

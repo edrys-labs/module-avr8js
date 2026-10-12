@@ -35,6 +35,10 @@
   --terminal-text: #2b2b2b;
   --terminal-error: #b8384a;
   --terminal-scrollbar: #c8c8c8;
+  --chart-text: #2b2b2b;
+  --chart-grid: #0000001a;
+  --chart-axis: #00000073;
+  --chart-series: #2f6fdf, #d9622b, #1f9e6e, #a33fb5, #b38600, #d1455b, #2b97b8, #6b5cd6;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -44,6 +48,10 @@
     --terminal-text: #c0caf5;
     --terminal-error: #f7768e;
     --terminal-scrollbar: #414868;
+    --chart-text: #c0caf5;
+    --chart-grid: #ffffff1a;
+    --chart-axis: #ffffff73;
+    --chart-series: #7aa2f7, #ff9e64, #9ece6a, #bb9af7, #e0af68, #f7768e, #7dcfff, #a9b1d6;
   }
 }
 
@@ -207,6 +215,11 @@ body {
   height: 1px;
   position: absolute;
   overflow: hidden;
+}
+
+avr-chart {
+  margin-bottom: .5rem;
+  display: block;
 }
 </style>
 
@@ -23375,6 +23388,655 @@ class $df8554ab86fe4a7d$export$dc537a3a3893548e {
 
 
 
+
+const $49dda4729f68d774$export$f1dc5297a0ca2ff4 = [
+    'RESET',
+    'INT0',
+    'INT1',
+    'PCINT0',
+    'PCINT1',
+    'PCINT2',
+    'WDT',
+    'TIMER2_COMPA',
+    'TIMER2_COMPB',
+    'TIMER2_OVF',
+    'TIMER1_CAPT',
+    'TIMER1_COMPA',
+    'TIMER1_COMPB',
+    'TIMER1_OVF',
+    'TIMER0_COMPA',
+    'TIMER0_COMPB',
+    'TIMER0_OVF',
+    'SPI_STC',
+    'USART_RX',
+    'USART_UDRE',
+    'USART_TX',
+    'ADC',
+    'EE_READY',
+    'ANALOG_COMP',
+    'TWI',
+    'SPM_READY'
+];
+// interrupt flags and the vectors they belong to
+const $49dda4729f68d774$var$FLAGS = {
+    TOV0: 'TIMER0_OVF',
+    OCF0A: 'TIMER0_COMPA',
+    OCF0B: 'TIMER0_COMPB',
+    TOV1: 'TIMER1_OVF',
+    OCF1A: 'TIMER1_COMPA',
+    OCF1B: 'TIMER1_COMPB',
+    ICF1: 'TIMER1_CAPT',
+    TOV2: 'TIMER2_OVF',
+    OCF2A: 'TIMER2_COMPA',
+    OCF2B: 'TIMER2_COMPB',
+    INTF0: 'INT0',
+    INTF1: 'INT1',
+    ADIF: 'ADC',
+    SPIF: 'SPI_STC',
+    TWINT: 'TWI'
+};
+// the pins that the timers drive in PWM mode
+const $49dda4729f68d774$var$PWM_PINS = {
+    OC0A: '6',
+    OC0B: '5',
+    OC1A: '9',
+    OC1B: '10',
+    OC2A: '11',
+    OC2B: '3'
+};
+const $49dda4729f68d774$var$TIMERS = [
+    (0, $ad2a78a750a59eb7$export$317a7a18d5dc735a),
+    (0, $ad2a78a750a59eb7$export$e555a1cf58ed17c0),
+    (0, $ad2a78a750a59eb7$export$b702579c8cdd8ef5)
+];
+const $49dda4729f68d774$var$SREG_FLAGS = 'CZNVSHTI' // bit 0 to 7
+;
+const $49dda4729f68d774$var$RAMEND = 0x8ff;
+const $49dda4729f68d774$var$VECTOR_TABLE = 2 * $49dda4729f68d774$export$f1dc5297a0ca2ff4.length // in words
+;
+class $49dda4729f68d774$export$336a011955157f9a {
+    /**
+   * @param interval cycles between two samples
+   * @param keep     cycles of history to keep
+   */ constructor(board, interval, keep){
+        this.board = board;
+        this.interval = interval;
+        this.keep = keep;
+        this.traces = [];
+        this.samplers = [];
+    }
+    get cpu() {
+        return this.board.runner.cpu;
+    }
+    trace(name, group, style) {
+        const trace = {
+            name: name,
+            group: group,
+            style: style,
+            data: []
+        };
+        this.traces.push(trace);
+        return trace;
+    }
+    /** appends a value, steps only store changes */ emit(trace, value) {
+        const last = trace.data[trace.data.length - 1];
+        if (trace.style === 'step' && last && last[1] === value) return;
+        trace.data.push([
+            this.cpu.cycles,
+            value
+        ]);
+    }
+    sample(trace, read) {
+        this.samplers.push(()=>this.emit(trace, read()));
+    }
+    /** reads a timer register, 16-bit for timer 1 */ register(timer, addr) {
+        const data = this.cpu.data;
+        return timer.bits === 16 ? data[addr] | data[addr + 1] << 8 : data[addr];
+    }
+    /** calls fn with the level of the pin, whenever it changes */ level(p, fn) {
+        const { port: port, bit: bit } = p;
+        const PIN = port.portConfig.PIN;
+        let last;
+        const check = ()=>{
+            // outputs by their driven level, the PIN register lags behind the listeners
+            const state = port.pinState(bit);
+            const high = state === (0, $12dded1feaa73920$export$b745cd59055324b1).High || state !== (0, $12dded1feaa73920$export$b745cd59055324b1).Low && !!(this.cpu.data[PIN] & 1 << bit);
+            if (high !== last) fn(last = high);
+        };
+        this.board.watch(p, check) // exact edges of outputs
+        ;
+        this.samplers.push(check) // inputs driven by parts
+        ;
+        check();
+    }
+    /** calls fn whenever the interrupt flag of the vector is raised */ interrupt(vector, fn) {
+        this.board.onInterrupt((interrupt)=>{
+            if (interrupt.address === 2 * vector) fn();
+        });
+    }
+    /** tracks which interrupt service routine runs, needs the per-instruction probe */ isr() {
+        if (this.isrState) return this.isrState;
+        const { cpu: cpu } = this;
+        const program = this.board.runner.program;
+        const state = this.isrState = {
+            stack: [],
+            busy: 0,
+            since: 0,
+            minSP: cpu.SP,
+            enter: [],
+            exit: []
+        };
+        this.board.probe(()=>{
+            const pc = cpu.pc;
+            if (pc < $49dda4729f68d774$var$VECTOR_TABLE) // an interrupt jumps to its vector, pc 0 is the reset
+            {
+                if (pc > 0 && !(pc & 1)) {
+                    if (!state.stack.length) state.since = cpu.cycles;
+                    state.stack.push(pc >> 1);
+                    state.enter.forEach((fn)=>fn(pc >> 1));
+                }
+            } else if (program[pc] === 0x9518 && state.stack.length) {
+                // RETI
+                const vector = state.stack.pop();
+                if (!state.stack.length) state.busy += cpu.cycles - state.since;
+                state.exit.forEach((fn)=>fn(vector));
+            }
+            const sp = cpu.SP;
+            if (sp < state.minSP) state.minSP = sp;
+        });
+        return state;
+    }
+    /** parses one signal name and starts recording it, returns false if unknown */ add(spec) {
+        const name = spec.trim().toUpperCase();
+        let m;
+        if (m = name.match(/^TCNT([012])$/)) {
+            const timer = $49dda4729f68d774$var$TIMERS[+m[1]];
+            // reading TCNT through the CPU lets avr8js bring the counter up to date
+            this.sample(this.trace(name, 'count', 'line'), ()=>{
+                this.cpu.readData(timer.TCNT);
+                return this.register(timer, timer.TCNT);
+            });
+            return true;
+        }
+        if (m = name.match(/^OCR([012])([AB])$/)) {
+            const timer = $49dda4729f68d774$var$TIMERS[+m[1]];
+            const addr = m[2] === 'A' ? timer.OCRA : timer.OCRB;
+            this.sample(this.trace(name, 'count', 'step'), ()=>this.register(timer, addr));
+            return true;
+        }
+        if (name === 'ICR1') {
+            this.sample(this.trace(name, 'count', 'step'), ()=>this.register((0, $ad2a78a750a59eb7$export$e555a1cf58ed17c0), (0, $ad2a78a750a59eb7$export$e555a1cf58ed17c0).ICR));
+            return true;
+        }
+        if (m = name.match(/^TOP([012])$/)) {
+            const timer = [
+                this.board.runner.timer0,
+                this.board.runner.timer1,
+                this.board.runner.timer2
+            ][+m[1]];
+            this.sample(this.trace(name, 'count', 'step'), ()=>timer.TOP);
+            return true;
+        }
+        if (m = name.match(/^ADC([0-5])$/)) {
+            const channel = +m[1];
+            const volts = this.trace(`${name} (V)`, 'V', 'line');
+            const reads = this.trace(`analogRead(A${channel})`, 'V', 'points');
+            this.sample(volts, ()=>this.board.voltage(channel) ?? 0);
+            this.board.onAnalogRead((ch, v)=>ch === channel && this.emit(reads, v));
+            return true;
+        }
+        if ($49dda4729f68d774$var$FLAGS[name] || $49dda4729f68d774$export$f1dc5297a0ca2ff4.indexOf(name) > 0) {
+            const marks = this.trace(name, 'logic', 'marks');
+            this.interrupt($49dda4729f68d774$export$f1dc5297a0ca2ff4.indexOf($49dda4729f68d774$var$FLAGS[name] || name), ()=>this.emit(marks, 1));
+            return true;
+        }
+        if (name === 'ISR') {
+            const lanes = {};
+            const lane = (vector)=>lanes[vector] = lanes[vector] || this.trace(`ISR ${$49dda4729f68d774$export$f1dc5297a0ca2ff4[vector]}`, 'logic', 'step');
+            const state = this.isr();
+            state.enter.push((vector)=>this.emit(lane(vector), 1));
+            state.exit.push((vector)=>this.emit(lane(vector), 0));
+            return true;
+        }
+        if (name === 'LOAD') {
+            // moving average over 40 samples (a tenth of the window by default),
+            // a single sample is often shorter than one ISR
+            const state = this.isr();
+            const history = [];
+            this.sample(this.trace('LOAD (% in ISR)', '%', 'line'), ()=>{
+                const now = this.cpu.cycles;
+                const total = state.busy + (state.stack.length ? now - state.since : 0);
+                history.push([
+                    now,
+                    total
+                ]);
+                if (history.length > 40) history.shift();
+                const [at, busy] = history[0];
+                return now > at ? 100 * (total - busy) / (now - at) : 0;
+            });
+            return true;
+        }
+        if (name === 'SP') {
+            this.sample(this.trace(name, 'address', 'step'), ()=>this.cpu.SP);
+            return true;
+        }
+        if (name === 'STACK') {
+            const state = this.isr();
+            this.sample(this.trace('STACK (bytes)', 'bytes', 'step'), ()=>{
+                const depth = $49dda4729f68d774$var$RAMEND - state.minSP;
+                state.minSP = this.cpu.SP;
+                return depth;
+            });
+            return true;
+        }
+        if (m = name.match(/^SREG(?:\.([CZNVSHTI]))?$/)) {
+            for (const flag of m[1] ? [
+                m[1]
+            ] : $49dda4729f68d774$var$SREG_FLAGS.split('').reverse()){
+                const bit = $49dda4729f68d774$var$SREG_FLAGS.indexOf(flag);
+                this.sample(this.trace(`SREG.${flag}`, 'logic', 'step'), ()=>this.cpu.SREG >> bit & 1);
+            }
+            return true;
+        }
+        if (m = name.match(/^MEM:(0X[0-9A-F]+|\d+)(?::(U8|U16|I8|I16))?$/)) {
+            const addr = Number(m[1].toLowerCase());
+            const type = m[2] || 'U8';
+            const view = this.cpu.dataView;
+            this.sample(this.trace(`MEM ${m[1]}`, 'value', 'step'), ()=>type === 'U16' ? view.getUint16(addr, true) : type === 'I16' ? view.getInt16(addr, true) : type === 'I8' ? view.getInt8(addr) : view.getUint8(addr));
+            return true;
+        }
+        // digital pins: D0-D13, A0-A5, 0-19, or the PWM outputs OC0A ...
+        const pinName = $49dda4729f68d774$var$PWM_PINS[name] || name.replace(/^D(\d+)$/, '$1');
+        const p = this.board.parse(pinName)[0];
+        if (p && /^(A[0-5]|\d+)$/.test(pinName)) {
+            const label = $49dda4729f68d774$var$PWM_PINS[name] ? `${name} (D${pinName})` : /^\d+$/.test(name) ? `D${name}` : name;
+            const trace = this.trace(label, 'logic', 'step');
+            this.level(p, (high)=>this.emit(trace, high ? 1 : 0));
+            return true;
+        }
+        return false;
+    }
+    /**
+   * Calls fn on a trigger event: an interrupt flag or vector (TOV0,
+   * TIMER1_COMPA), or a pin edge (D2:rise, OC0A:fall, A0:change).
+   */ trigger(spec, fn) {
+        const [name, edge = 'rise'] = spec.trim().toUpperCase().split(':');
+        const vector = $49dda4729f68d774$export$f1dc5297a0ca2ff4.indexOf($49dda4729f68d774$var$FLAGS[name] || name);
+        if (vector > 0) {
+            this.interrupt(vector, fn);
+            return true;
+        }
+        const pinName = $49dda4729f68d774$var$PWM_PINS[name] || name.replace(/^D(\d+)$/, '$1');
+        const p = /^(A[0-5]|\d+)$/.test(pinName) && this.board.parse(pinName)[0];
+        if (!p) return false;
+        let first = true;
+        this.level(p, (high)=>{
+            if (first) first = false;
+            else if (edge === 'CHANGE' || high === (edge === 'RISE')) fn();
+        });
+        return true;
+    }
+    /** starts sampling, it runs until the CPU stops */ start() {
+        const tick = ()=>{
+            this.samplers.forEach((sample)=>sample());
+            this.trim();
+            this.cpu.addClockEvent(tick, this.interval);
+        };
+        tick();
+    }
+    /** drops the history older than keep, one older point stays for the steps */ trim() {
+        const limit = this.cpu.cycles - this.keep;
+        for (const { data: data } of this.traces){
+            if (data.length < 64 || data[32][0] >= limit) continue;
+            let i = 0;
+            while(i < data.length - 1 && data[i + 1][0] < limit)i++;
+            data.splice(0, i);
+        }
+    }
+}
+
+
+/**
+ * <avr-chart signals="TCNT0, OCR0A, OC0A" window="2ms" mode="roll|scope"
+ *            trigger="TOV0" speed="0.001"></avr-chart>
+ *
+ * Plots signals from inside the ATmega328p (see probe.ts). In roll mode the
+ * chart shows the last window of simulation time, in scope mode the window
+ * after each trigger event as a still picture. Recording and attributes are
+ * those of LiaTemplates/AVR8js; the drawing is a canvas of our own, since
+ * edrys has no <lia-chart>.
+ */ // the slow motion factor of every chart, the slowest one wins
+const $db887e9236af9fbc$var$speeds = new WeakMap();
+const $db887e9236af9fbc$var$LANE = 26 // px per digital lane
+;
+const $db887e9236af9fbc$var$PLOT = 150 // px per analog plot
+;
+const $db887e9236af9fbc$var$GAP = 24 // px above each plot, for its unit
+;
+const $db887e9236af9fbc$var$LEFT = 110 // px for the y-axis and lane labels
+;
+const $db887e9236af9fbc$var$RIGHT = 16;
+const $db887e9236af9fbc$var$AXIS = 32 // px for the time axis
+;
+/** "2ms", "500us", "1s" → seconds */ function $db887e9236af9fbc$var$duration(value, fallback) {
+    const m = (value || '').trim().match(/^([\d.]+)\s*(us|µs|ms|s)?$/i);
+    if (!m) return fallback;
+    const scale = {
+        us: 1e-6,
+        "\xb5s": 1e-6,
+        ms: 1e-3,
+        s: 1
+    };
+    return parseFloat(m[1]) * scale[(m[2] || 's').toLowerCase()];
+}
+// fixed ends of the y-axes; open ends follow the data. % only starts at 0, a
+// load of a few percent would be a flat line on a 0-100 axis
+const $db887e9236af9fbc$var$RANGES = {
+    V: {
+        min: 0,
+        max: 5
+    },
+    '%': {
+        min: 0
+    },
+    count: {
+        min: 0
+    }
+};
+/** thin lines are sharp only in the middle of a pixel */ const $db887e9236af9fbc$var$crisp = (v)=>Math.round(v - 0.5) + 0.5;
+/** about count round steps between min and max */ function $db887e9236af9fbc$var$ticks(min, max, count) {
+    const raw = (max - min) / count;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = magnitude * ([
+        1,
+        2,
+        5,
+        10
+    ].find((f)=>f * magnitude >= raw) || 10);
+    const decimals = Math.max(0, -Math.floor(Math.log10(step)));
+    const result = [];
+    for(let v = Math.ceil(min / step) * step; v <= max + step * 1e-9; v += step)result.push(Number(v.toFixed(decimals)));
+    return result;
+}
+/** the points inside the window, lines and steps start at its left edge */ function $db887e9236af9fbc$var$clip(t, from, to) {
+    const points = [];
+    let before;
+    for (const p of t.data){
+        if (p[0] < from) before = p;
+        else if (p[0] <= to) points.push(p);
+    }
+    if (before && (t.style === 'step' || t.style === 'line')) points.unshift([
+        from,
+        before[1]
+    ]);
+    if (t.style === 'step' && points.length) points.push([
+        to,
+        points[points.length - 1][1]
+    ]);
+    return points;
+}
+const $db887e9236af9fbc$var$VIEW = `<style>
+  :host { display: block; }
+  .title { margin: 0 0 0.25rem; font-weight: bold; text-align: center; }
+  .title:empty { display: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; margin-bottom: 0.25rem; font-size: small; }
+  .legend:empty { display: none; }
+  .legend span::before {
+    content: ''; display: inline-block; width: 0.8em; height: 0.8em; margin-right: 0.3em;
+    border-radius: 2px; background: var(--color); vertical-align: -0.05em;
+  }
+  canvas { display: block; width: 100%; }
+</style><div class="title"></div><div class="legend"></div><canvas role="img"></canvas>`;
+function $db887e9236af9fbc$export$931f18df903857e2(el, board) {
+    const FREQ = board.runner.FREQ;
+    const seconds = $db887e9236af9fbc$var$duration(el.getAttribute('window'), 0.002);
+    const windowCycles = Math.max(16, Math.round(seconds * FREQ));
+    const samples = Math.min(5000, Math.max(10, board.num(el, 'samples', 400)));
+    // a frame may run far past the window (500k cycles), keep enough history
+    const recorder = new (0, $49dda4729f68d774$export$336a011955157f9a)(board, Math.max(1, Math.round(windowCycles / samples)), 2 * windowCycles + board.runner.workUnitCycles);
+    const signals = (el.getAttribute('signals') || 'TCNT0').split(/[\s,;]+/).filter(Boolean);
+    for (const signal of signals)if (!recorder.add(signal)) console.warn(`avr-chart: unknown signal "${signal}"`);
+    const scope = el.getAttribute('mode') === 'scope';
+    const trigger = scope && el.getAttribute('trigger');
+    let triggered = -1;
+    let armed = 0 // wall time when the next trigger is accepted
+    ;
+    if (trigger) {
+        const accepted = recorder.trigger(trigger, ()=>{
+            if (triggered < 0 && performance.now() >= armed) triggered = board.cycles;
+        });
+        if (!accepted) console.warn(`avr-chart: unknown trigger "${trigger}"`);
+    }
+    recorder.start();
+    Object.defineProperty(el, 'traces', {
+        get: ()=>recorder.traces,
+        configurable: true
+    });
+    // the view lives in a shadow root, so the circuit's styles don't reach it
+    const root = el.shadowRoot || el.attachShadow({
+        mode: 'open'
+    });
+    root.innerHTML = $db887e9236af9fbc$var$VIEW;
+    const titleBox = root.querySelector('.title');
+    const legendBox = root.querySelector('.legend');
+    const canvas = root.querySelector('canvas');
+    titleBox.textContent = el.getAttribute('title') || '';
+    canvas.setAttribute('aria-label', `Chart of ${signals.join(', ')}`);
+    let legend = '';
+    // draw only while the chart is on screen
+    let visible = true;
+    if (typeof IntersectionObserver !== 'undefined') {
+        const observer = new IntersectionObserver((entries)=>{
+            visible = entries[entries.length - 1].isIntersecting;
+        });
+        observer.observe(el);
+        board.signal.addEventListener('abort', ()=>observer.disconnect());
+    }
+    const unit = seconds < 2e-3 ? [
+        "\xb5s",
+        1e6
+    ] : seconds < 2 ? [
+        'ms',
+        1e3
+    ] : [
+        's',
+        1
+    ];
+    const render = (ref, from, to)=>{
+        const width = canvas.clientWidth;
+        if (!width) return;
+        const style = getComputedStyle(el);
+        const color = (name, fallback)=>style.getPropertyValue(name).trim() || fallback;
+        const text = color('--chart-text', '#888');
+        const grid = color('--chart-grid', 'rgba(128,128,128,0.2)');
+        const axis = color('--chart-axis', '#888');
+        const palette = color('--chart-series', '#2f6fdf, #d9622b, #1f9e6e, #a33fb5').split(',').map((c)=>c.trim());
+        const traces = recorder.traces;
+        const colorOf = (t)=>palette[traces.indexOf(t) % palette.length];
+        const groups = [
+            ...new Set(traces.map((t)=>t.group).filter((g)=>g !== 'logic'))
+        ];
+        const lanes = traces.filter((t)=>t.group === 'logic');
+        // legend of the plotted lines, the lanes are labelled on the canvas
+        const entries = traces.filter((t)=>t.group !== 'logic').map((t)=>`${t.name}\u0000${colorOf(t)}`);
+        if (entries.join('|') !== legend) {
+            legend = entries.join('|');
+            legendBox.replaceChildren(...entries.map((entry)=>{
+                const [name, c] = entry.split('\u0000');
+                const span = document.createElement('span');
+                span.textContent = name;
+                span.style.setProperty('--color', c);
+                return span;
+            }));
+        }
+        // layout: the plots, then the lanes, then the time axis
+        const wanted = board.num(el, 'height', 0);
+        const logicHeight = lanes.length * $db887e9236af9fbc$var$LANE;
+        const plot = wanted ? Math.max(60, (wanted - $db887e9236af9fbc$var$AXIS - logicHeight - $db887e9236af9fbc$var$GAP * groups.length) / Math.max(1, groups.length)) : $db887e9236af9fbc$var$PLOT;
+        const height = groups.length * ($db887e9236af9fbc$var$GAP + plot) + (lanes.length ? 8 + logicHeight : 0) + $db887e9236af9fbc$var$AXIS;
+        const dpr = window.devicePixelRatio || 1;
+        if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+            canvas.width = Math.round(width * dpr);
+            canvas.height = Math.round(height * dpr);
+            canvas.style.height = `${height}px`;
+        }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, width, height);
+        ctx.font = `11px ${style.fontFamily}`;
+        ctx.lineJoin = 'round';
+        const right = width - $db887e9236af9fbc$var$RIGHT;
+        const xOf = (cycles)=>$db887e9236af9fbc$var$LEFT + (cycles - from) / (to - from) * (right - $db887e9236af9fbc$var$LEFT);
+        const bottom = height - $db887e9236af9fbc$var$AXIS;
+        // time axis and its vertical grid, in µs/ms/s relative to ref
+        const t = (cycles)=>(cycles - ref) / FREQ * unit[1];
+        const tMin = t(from);
+        const tMax = t(to);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        for (const v of $db887e9236af9fbc$var$ticks(tMin, tMax, Math.max(2, Math.floor((right - $db887e9236af9fbc$var$LEFT) / 80)))){
+            const x = $db887e9236af9fbc$var$crisp($db887e9236af9fbc$var$LEFT + (v - tMin) / (tMax - tMin) * (right - $db887e9236af9fbc$var$LEFT));
+            ctx.strokeStyle = grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, bottom);
+            ctx.stroke();
+            ctx.fillStyle = text;
+            ctx.fillText(String(v), x, bottom + 6);
+        }
+        ctx.textAlign = 'right';
+        ctx.fillText(unit[0], right, bottom + 18);
+        ctx.strokeStyle = axis;
+        ctx.beginPath();
+        ctx.moveTo($db887e9236af9fbc$var$LEFT, bottom);
+        ctx.lineTo(right, bottom);
+        ctx.stroke();
+        // one plot per unit
+        groups.forEach((group, i)=>{
+            const top = i * ($db887e9236af9fbc$var$GAP + plot) + $db887e9236af9fbc$var$GAP;
+            const members = traces.filter((tr)=>tr.group === group);
+            const visiblePoints = members.map((tr)=>$db887e9236af9fbc$var$clip(tr, from, to));
+            let min = $db887e9236af9fbc$var$RANGES[group]?.min;
+            let max = $db887e9236af9fbc$var$RANGES[group]?.max;
+            const values = visiblePoints.flat().map((p)=>p[1]);
+            if (min === undefined) min = values.length ? Math.min(...values) : 0;
+            if (max === undefined) {
+                max = values.length ? Math.max(...values) : 1;
+                max += (max - min) * 0.05 // headroom above the highest value
+                ;
+                if (group === '%') max = Math.min(100, Math.max(max, 1));
+            }
+            if (max - min < 1e-9) max = min + 1;
+            const yOf = (v)=>top + plot - (v - min) / (max - min) * plot;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (const v of $db887e9236af9fbc$var$ticks(min, max, 4)){
+                const y = $db887e9236af9fbc$var$crisp(yOf(v));
+                ctx.strokeStyle = grid;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo($db887e9236af9fbc$var$LEFT, y);
+                ctx.lineTo(right, y);
+                ctx.stroke();
+                ctx.fillStyle = text;
+                ctx.fillText(String(v), $db887e9236af9fbc$var$LEFT - 6, y);
+            }
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(group, $db887e9236af9fbc$var$LEFT - 6, top - 6);
+            ctx.strokeStyle = axis;
+            ctx.beginPath();
+            ctx.moveTo($db887e9236af9fbc$var$LEFT, top);
+            ctx.lineTo($db887e9236af9fbc$var$LEFT, top + plot);
+            ctx.stroke();
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect($db887e9236af9fbc$var$LEFT, top - 2, right - $db887e9236af9fbc$var$LEFT, plot + 4);
+            ctx.clip();
+            members.forEach((tr, j)=>{
+                const points = visiblePoints[j];
+                ctx.strokeStyle = ctx.fillStyle = colorOf(tr);
+                ctx.lineWidth = 1.5;
+                if (tr.style === 'points') {
+                    for (const [c, v] of points){
+                        ctx.beginPath();
+                        ctx.arc(xOf(c), yOf(v), 2.5, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                    return;
+                }
+                ctx.beginPath();
+                points.forEach(([c, v], k)=>{
+                    const x = xOf(c);
+                    const y = yOf(v);
+                    if (k === 0) ctx.moveTo(x, y);
+                    else {
+                        if (tr.style === 'step') ctx.lineTo(x, yOf(points[k - 1][1]));
+                        ctx.lineTo(x, y);
+                    }
+                });
+                ctx.stroke();
+            });
+            ctx.restore();
+        });
+        // the digital lanes: levels as steps, interrupt flags as marks
+        const lanesTop = groups.length * ($db887e9236af9fbc$var$GAP + plot) + 8;
+        lanes.forEach((tr, i)=>{
+            const base = lanesTop + (i + 1) * $db887e9236af9fbc$var$LANE - 5;
+            const high = base - $db887e9236af9fbc$var$LANE * 0.6;
+            ctx.fillStyle = text;
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(tr.name, $db887e9236af9fbc$var$LEFT - 6, base - $db887e9236af9fbc$var$LANE * 0.3);
+            ctx.strokeStyle = grid;
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo($db887e9236af9fbc$var$LEFT, base + 2.5);
+            ctx.lineTo(right, base + 2.5);
+            ctx.stroke();
+            const points = $db887e9236af9fbc$var$clip(tr, from, to);
+            ctx.strokeStyle = ctx.fillStyle = colorOf(tr);
+            if (tr.style === 'marks') {
+                for (const [c] of points)ctx.fillRect(xOf(c) - 1, high, 2, base - high);
+                return;
+            }
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            points.forEach(([c, v], k)=>{
+                const x = xOf(c);
+                const y = v ? high : base;
+                if (k === 0) ctx.moveTo(x, y);
+                else {
+                    ctx.lineTo(x, points[k - 1][1] ? high : base);
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+        });
+    };
+    let rendered = 0;
+    return ()=>{
+        let charts = $db887e9236af9fbc$var$speeds.get(board);
+        if (!charts) $db887e9236af9fbc$var$speeds.set(board, charts = new Map());
+        charts.set(el, board.num(el, 'speed', 1));
+        board.runner.speed = Math.min(...charts.values());
+        const now = board.cycles;
+        if (trigger) {
+            // a still picture of the window after the trigger
+            if (triggered < 0 || now < triggered + windowCycles) return;
+            if (visible) render(triggered, triggered - windowCycles / 10, triggered + windowCycles);
+            triggered = -1;
+            armed = performance.now() + 300;
+        } else {
+            if (!visible || performance.now() - rendered < 100) return;
+            rendered = performance.now();
+            render(now, now - windowCycles, now);
+        }
+    };
+}
+
+
 const $497caf50a54906b7$export$fdcc7c6a4074abc4 = 0x68;
 const $497caf50a54906b7$var$bcd = (value)=>(value / 10 | 0) << 4 | value % 10;
 const $497caf50a54906b7$var$dec = (value)=>(value >> 4) * 10 + (value & 0x0f);
@@ -25202,7 +25864,8 @@ const $d1559c8c5b32c2bb$export$6e2410c1d27f06e7 = {
     'wokwi-ds1307': $d1559c8c5b32c2bb$var$ds1307,
     'wokwi-mpu6050': $d1559c8c5b32c2bb$var$mpu6050,
     'wokwi-ili9341': $d1559c8c5b32c2bb$var$ili9341,
-    'wokwi-microsd-card': $d1559c8c5b32c2bb$var$sdCard
+    'wokwi-microsd-card': $d1559c8c5b32c2bb$var$sdCard,
+    'avr-chart': (0, $db887e9236af9fbc$export$931f18df903857e2)
 };
 
 
@@ -25434,6 +26097,21 @@ const $59fa2eebf337fb6c$var$SENSORS = {
             'rotationZ',
             'temperature'
         ]
+    },
+    // slow motion, only with controls='speed:0.0005:0.05'
+    'avr-chart': {
+        name: 'chart',
+        controls: [
+            {
+                attr: 'speed',
+                label: 'Speed',
+                min: 0.0001,
+                max: 1,
+                value: 1,
+                step: 0.0001
+            }
+        ],
+        shown: []
     }
 };
 const $59fa2eebf337fb6c$export$eb55f68bf87a1656 = Object.keys($59fa2eebf337fb6c$var$SENSORS);

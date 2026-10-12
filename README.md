@@ -141,6 +141,7 @@ Arduino Uno (ATmega328P) through their attributes.
 | `wokwi-ili9341` | SPI, `pin-cs` (10), `pin-dc` (9) (`Adafruit_ILI9341`) |
 | `wokwi-microsd-card` | SPI, `pin-cs` (10), an empty 8 MB FAT16 card (`SD`) |
 | `wokwi-arduino-uno`, `wokwi-arduino-nano` | shows the LED on pin 13, the TX LED and the power LED |
+| `avr-chart` | plots registers, pins and interrupts, see [Chart](#chart-inside-the-controller) |
 | `<span id='simulation-time'></span>` | shows the simulation time and speed, e.g. `Simulation time: 00:05.123 (100%)` |
 
 Other Wokwi elements are shown but not simulated, e.g. `wokwi-resistor` or boards with another microcontroller.
@@ -192,6 +193,46 @@ optional `:min:max` range. Attributes that are not in the table need a range. `c
 <wokwi-mpu6050 controls='rotationX, rotationY, rotationZ'></wokwi-mpu6050>
 <wokwi-photoresistor-sensor pin='A0' controls='none'></wokwi-photoresistor-sensor>
 ```
+
+### Chart: inside the controller
+
+`<avr-chart>` plots what happens inside the ATmega328P while the simulation runs: timer counters, compare
+registers, pins, interrupts, the ADC or the stack. It works like a logic analyzer.
+
+```html
+<avr-chart signals='TCNT0, OCR0B, OC0B, TOV0' window='4ms' mode='scope' trigger='TOV0'></avr-chart>
+<avr-chart signals='ISR, LOAD, D13, D2' window='20ms'></avr-chart>
+<avr-chart signals='TCNT2, OCR2A, OC2A' window='4ms' speed='0.002' controls='speed:0.0005:0.05'></avr-chart>
+```
+
+| Attribute | Meaning | Default |
+|---|---|---|
+| `signals` | comma-separated list of the signals below | `TCNT0` |
+| `window` | the time span shown, in simulation time: `500us`, `4ms`, `2s` | `2ms` |
+| `mode` | `roll`: the last `window` scrolls by; `scope`: a still picture of the `window` after each `trigger` | `roll` |
+| `trigger` | for `scope`: an interrupt flag or vector (`TOV0`, `TIMER1_COMPA`) or a pin edge (`D2:rise`, `OC0A:fall`, `A0:change`) | none |
+| `speed` | slow motion for the whole simulation: `0.001` runs 1000 times slower; `controls='speed:min:max'` adds a slider | `1` |
+| `samples` | samples per window | `400` |
+| `height` | total height in px; by default it grows with the number of signals | |
+| `title` | a title above the chart | |
+
+| Signals | Shows |
+|---|---|
+| `TCNT0`, `TCNT1`, `TCNT2` | the timer counters |
+| `OCR0A`, `OCR0B`, `OCR1A`, `OCR1B`, `OCR2A`, `OCR2B`, `ICR1` | the compare and input capture registers |
+| `TOP0`, `TOP1`, `TOP2` | the value the timer counts up to in its current mode |
+| `TOV0`, `OCF0A`, `OCF1B`, `INTF0`, `ADIF`, … | a mark whenever the interrupt flag is raised; vector names (`TIMER0_OVF`, `INT0`) work too |
+| `D0`–`D13`, `A0`–`A5` | the pin levels |
+| `OC0A`, `OC0B`, `OC1A`, `OC1B`, `OC2A`, `OC2B` | the PWM outputs of the timers (pins 6, 5, 9, 10, 11, 3) |
+| `ADC0`–`ADC5` | the voltage at the analog pin; every `analogRead` is marked with the voltage it read |
+| `ISR` | one lane per interrupt service routine, `HIGH` while it runs |
+| `LOAD` | the share of time spent in interrupt service routines |
+| `STACK`, `SP` | the bytes used on the stack, the stack pointer |
+| `SREG`, `SREG.I`, `SREG.C`, … | the status register flags |
+| `MEM:0x0100:u8` | a byte in RAM, also `u16`, `i8` and `i16` |
+
+`ISR`, `LOAD` and `STACK` check every instruction, which slows the simulation down a bit. Like the sliders, a
+chart and its slow motion affect only your own simulation.
 
 ---
 
@@ -418,6 +459,64 @@ void loop() {
   lcd.setCursor(0, 1);
   lcd.print(now.toString(time));
   delay(1000);
+}
+```
+
+### Serial Input
+
+```yaml
+modules: |
+  <wokwi-led color='red' pin='13'></wokwi-led>
+```
+
+Type `on` or `off` in the input line below the terminal and press Enter:
+```cpp
+void setup() {
+  Serial.begin(9600);
+  pinMode(13, OUTPUT);
+  Serial.println("Type on or off");
+}
+
+void loop() {
+  if (Serial.available()) {
+    String command = Serial.readStringUntil('\n');
+    command.trim();
+    if (command == "on") {
+      digitalWrite(13, HIGH);
+    } else if (command == "off") {
+      digitalWrite(13, LOW);
+    } else {
+      Serial.print("Unknown command: ");
+      Serial.println(command);
+      return;
+    }
+    Serial.print("LED ");
+    Serial.println(command);
+  }
+}
+```
+
+### Chart: PWM
+
+```yaml
+modules: |
+  <wokwi-led color='red' pin='5'></wokwi-led>
+  <avr-chart signals='TCNT0, OCR0B, OC0B' window='4ms' mode='scope' trigger='TOV0'></avr-chart>
+```
+
+The chart shows Timer0 counting from 0 to 255. Pin 5 (`OC0B`) is on until the counter passes `OCR0B`, so a higher
+duty keeps it on longer and the LED glows brighter:
+```cpp
+void setup() {
+  pinMode(5, OUTPUT);
+}
+
+void loop() {
+  // Timer0 counts 0-255 and switches pin 5 off when it passes OCR0B
+  for (int duty = 32; duty < 256; duty += 64) {
+    analogWrite(5, duty);
+    delay(1000);
+  }
 }
 ```
 

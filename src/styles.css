@@ -6,6 +6,11 @@
     --terminal-text: #2b2b2b;
     --terminal-error: #b8384a;
     --terminal-scrollbar: #c8c8c8;
+    /* <avr-chart>: axes, grid and series colours */
+    --chart-text: #2b2b2b;
+    --chart-grid: rgba(0, 0, 0, 0.1);
+    --chart-axis: rgba(0, 0, 0, 0.45);
+    --chart-series: #2f6fdf, #d9622b, #1f9e6e, #a33fb5, #b38600, #d1455b, #2b97b8, #6b5cd6;
 }
 @media (prefers-color-scheme: dark) {
     :root {
@@ -14,6 +19,10 @@
         --terminal-text: #c0caf5;
         --terminal-error: #f7768e;
         --terminal-scrollbar: #414868;
+        --chart-text: #c0caf5;
+        --chart-grid: rgba(255, 255, 255, 0.1);
+        --chart-axis: rgba(255, 255, 255, 0.45);
+        --chart-series: #7aa2f7, #ff9e64, #9ece6a, #bb9af7, #e0af68, #f7768e, #7dcfff, #a9b1d6;
     }
 }
 
@@ -171,4 +180,9 @@ body {
     overflow: hidden;
     clip: rect(0 0 0 0);
     white-space: nowrap;
+}
+
+avr-chart {
+    display: block;
+    margin-bottom: 0.5rem;
 }
