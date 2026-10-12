@@ -24296,14 +24296,26 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                 PushButton.forEach((button)=>{
                     const [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(button);
                     if (typeof pin === 'number' && p === PORT) {
-                        port.setPin(pin, false);
+                        let pressed = false;
+                        // Like a real button: with INPUT_PULLUP it connects the pin to GND
+                        // (pressed reads LOW), with INPUT it connects it to VCC against a
+                        // pull-down resistor (pressed reads HIGH). The sketch sets the
+                        // mode after wiring, so the port listener re-checks it.
+                        const update = ()=>{
+                            const pullup = port.pinState(pin) === (0, $12dded1feaa73920$export$b745cd59055324b1).InputPullUp;
+                            port.setPin(pin, pressed !== pullup);
+                        };
+                        port.addListener(update);
+                        update();
                         button.addEventListener('button-press', ()=>{
-                            if (runner) port.setPin(pin, true);
+                            pressed = true;
+                            update();
                         }, {
                             signal: listeners.signal
                         });
                         button.addEventListener('button-release', ()=>{
-                            if (runner) port.setPin(pin, false);
+                            pressed = false;
+                            update();
                         }, {
                             signal: listeners.signal
                         });

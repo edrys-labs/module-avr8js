@@ -119,7 +119,11 @@ All elements are standard Wokwi web components placed in the `modules` HTML stri
 
 | Attribute | Description |
 |---|---|
-| `pin` | Arduino digital pin to drive HIGH when pressed |
+| `pin` | Arduino digital pin the button is connected to |
+
+The button behaves like a real one. With `pinMode(pin, INPUT_PULLUP)` it connects the pin to GND, so pressed reads
+`LOW` and released reads `HIGH`. With `INPUT` it works as if a pull-down resistor were wired in, so pressed reads `HIGH`
+and released reads `LOW`.
 
 ### Analog Input
 

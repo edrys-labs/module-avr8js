@@ -190,18 +190,27 @@ const AVR8js = {
           const [pin, p] = pinPort(button)
 
           if (typeof pin === 'number' && p === PORT) {
-            port.setPin(pin, false)
+            let pressed = false
+
+            // Like a real button: with INPUT_PULLUP it connects the pin to GND
+            // (pressed reads LOW), with INPUT it connects it to VCC against a
+            // pull-down resistor (pressed reads HIGH). The sketch sets the
+            // mode after wiring, so the port listener re-checks it.
+            const update = () => {
+              const pullup = port.pinState(pin) === PinState.InputPullUp
+              port.setPin(pin, pressed !== pullup)
+            }
+            port.addListener(update)
+            update()
 
             button.addEventListener('button-press', () => {
-              if (runner) {
-                port.setPin(pin, true)
-              }
+              pressed = true
+              update()
             }, { signal: listeners.signal })
 
             button.addEventListener('button-release', () => {
-              if (runner) {
-                port.setPin(pin, false)
-              }
+              pressed = false
+              update()
             }, { signal: listeners.signal })
           }
         })
