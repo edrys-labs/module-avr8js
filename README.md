@@ -26,6 +26,10 @@ simulator. With `synchronize: true`, an upload from anyone in the room starts on
 editor's own sync setting, e.g. [module-monaco-editor](https://github.com/edrys-labs/module-monaco-editor)'s
 `synchronize`, to choose between a shared program and individual work.
 
+With `synchronize: true`, the last upload is also kept in the room state under `avr8js:<execute>` (e.g.
+`avr8js:execute`). Peers who join the room later, or whose module reloads, compile and start it
+automatically; their simulation starts from the beginning, not in step with the others.
+
 **YAML example:**
 
 ```yaml

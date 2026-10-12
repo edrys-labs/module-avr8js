@@ -152,7 +152,31 @@
                     send()
                 }
             });
+
+            // with synchronize, pick up the program the room is running (it starts at time 0)
+            if (Edrys.module.config?.synchronize === true) {
+                const sketch = Edrys.getState(sketchKey(), "Value")
+
+                if (sketch) {
+                    whenLoaded(() => compile(sketch))
+                }
+            }
         });
+
+        // Room state is shared by all modules in the room, so the key names
+        // the module and the subject it listens to.
+        function sketchKey() {
+            return "avr8js:" + (Edrys.module.config?.execute || "execute")
+        }
+
+        // window.AVR8js comes from the bundled module script
+        function whenLoaded(fn) {
+            if (window["AVR8js"]) {
+                fn()
+            } else {
+                window.addEventListener("load", fn, { once: true })
+            }
+        }
 
         Edrys.onMessage(
             ({
@@ -170,6 +194,11 @@
                     try {
                         let data = JSON.parse(body)
                     } catch (e) {
+                        // the sender keeps the upload in the room for peers who join or reload later
+                        if (Edrys.module.config?.synchronize === true && from === Edrys.username) {
+                            Edrys.getState(sketchKey(), "Value", body)
+                        }
+
                         compile(body)
                     }
 
