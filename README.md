@@ -12,12 +12,19 @@ https://edrys-labs.github.io/module-avr8js/index.html
 
 ## Configuration
 
-The module accepts two configuration properties:
+The module accepts three configuration properties:
 
-| Property  | Type   | Description                                              | Default     |
-|-----------|--------|----------------------------------------------------------|-------------|
-| `modules` | String | HTML string of Wokwi circuit elements to display        | `""`        |
-| `execute` | String | Edrys message topic the module listens on for code/hex  | `"execute"` |
+| Property      | Type    | Description                                                                 | Default     |
+|---------------|---------|-----------------------------------------------------------------------------|-------------|
+| `modules`     | String  | HTML string of Wokwi circuit elements to display                            | `""`        |
+| `execute`     | String  | Edrys message topic the module listens on for code/hex                      | `"execute"` |
+| `synchronize` | Boolean | Run code sent by any peer in the room on every peer in that room            | `false`     |
+
+By default, each peer runs only the code it sent itself: a student's upload starts only that student's
+simulator. With `synchronize: true`, an upload from anyone in the room starts on every peer in the room
+(each peer still runs its own simulation, so button presses and knob turns stay local). Combine it with an
+editor's own sync setting, e.g. [module-monaco-editor](https://github.com/edrys-labs/module-monaco-editor)'s
+`synchronize`, to choose between a shared program and individual work.
 
 **YAML example:**
 
@@ -29,6 +36,7 @@ modules: |
   <span id='simulation-time'></span>
 
 execute: execute
+synchronize: false
 ```
 
 **JSON example:**
@@ -36,7 +44,8 @@ execute: execute
 ```json
 {
   "modules": "<wokwi-led color='red' pin='13' label='13'></wokwi-led>\n<wokwi-led color='green' pin='12' label='12'></wokwi-led>\n<span id='simulation-time'></span>",
-  "execute": "execute"
+  "execute": "execute",
+  "synchronize": false
 }
 ```
 
