@@ -246,16 +246,8 @@ const AVR8js = {
             let [pin, p] = pinPort(e)
 
             if (typeof pin === 'number' && p === PORT) {
-              e.values = [
-                value & 1,
-                value & 2,
-                value & 4,
-                value & 16,
-                value & 32,
-                value & 64,
-                value & 128,
-                value & 256,
-              ]
+              // port bits 0–7 drive segments A, B, C, D, E, F, G, DP
+              e.values = Array.from({ length: 8 }, (_, i) => (value >> i) & 1)
             }
           })
 

@@ -133,6 +133,26 @@ I2C address: `0x27`. Use the `LiquidCrystal_I2C` library in your sketch.
 
 I2C address: `0x3D`. Use the `Adafruit_SSD1306` library in your sketch.
 
+#### `wokwi-7segment` — 7-Segment Display
+
+```html
+<wokwi-7segment pin='0'></wokwi-7segment>
+```
+
+| Attribute | Description |
+|---|---|
+| `pin` | Selects the whole port: `0`–`7` → PORTD, `8`–`13` → PORTB |
+
+Port bits 0–7 drive segments A, B, C, D, E, F, G and DP. On PORTD, pins 0 and 1 are also the serial
+pins, so don't use `Serial` in the same sketch.
+
+```cpp
+void setup() { DDRD = 0xFF; }
+void loop() {
+  PORTD = 0b01111111; // "8": segments A–G
+}
+```
+
 ### PWM / Actuators
 
 #### `wokwi-servo` — Servo Motor

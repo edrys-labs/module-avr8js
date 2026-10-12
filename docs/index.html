@@ -23607,16 +23607,10 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                     });
                     SEG7.forEach((e)=>{
                         let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(e);
-                        if (typeof pin === "number" && p === PORT) e.values = [
-                            value & 1,
-                            value & 2,
-                            value & 4,
-                            value & 16,
-                            value & 32,
-                            value & 64,
-                            value & 128,
-                            value & 256
-                        ];
+                        if (typeof pin === "number" && p === PORT) // port bits 0–7 drive segments A, B, C, D, E, F, G, DP
+                        e.values = Array.from({
+                            length: 8
+                        }, (_, i)=>value >> i & 1);
                     });
                     for(let i = 0; i < NeoMatrix.length; i++){
                         let [pin, p] = (0, $d6081ff883bc8055$export$250d30c71cd6f6fd)(NeoMatrix[i]);
