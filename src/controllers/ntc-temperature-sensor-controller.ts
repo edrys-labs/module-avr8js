@@ -1,5 +1,6 @@
 import { NTCTemperatureSensorElement } from '@wokwi/elements'
 import { DraggableSlider, SliderConfig, SliderCallbacks } from './draggable-slider'
+import { adcChannel } from '../pins'
 
 export class NTCTemperatureSensorController {
   private sensors: Map<NTCTemperatureSensorElement, {
@@ -76,11 +77,8 @@ export class NTCTemperatureSensorController {
   }
 
   private updateSensorADC(sensor: NTCTemperatureSensorElement, temperature: number, runner: any) {
-    const pin = sensor.getAttribute('pin')
-    if (!pin) return
-
-    const pinNumber = parseInt(pin, 10)
-    if (isNaN(pinNumber)) return
+    const channel = adcChannel(sensor as unknown as Element)
+    if (channel === null) return
 
     // Calculate voltage divider output
     // Assuming a 10kΩ pull-up resistor to 5V
@@ -96,7 +94,7 @@ export class NTCTemperatureSensorController {
     
     // Set the ADC channel value
     if (runner.adc && runner.adc.channelValues) {
-      runner.adc.channelValues[pinNumber] = voltage
+      runner.adc.channelValues[channel] = voltage
     }
   }
 

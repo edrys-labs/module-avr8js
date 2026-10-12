@@ -1,6 +1,7 @@
 import '@wokwi/elements'
 import { AVRRunner, PORT } from './execute'
 import { formatTime } from './format-time'
+import { adcChannel, pinPort } from './pins'
 //import { WS2812Controller } from "./ws2812";
 import { CPUPerformance } from './cpu-performance'
 import { PinState } from 'avr8js'
@@ -37,25 +38,6 @@ const buzzerAudio = new BuzzerAudio()
 const servoController = new ServoController()
 const ntcController = new NTCTemperatureSensorController()
 
-function pinPort(e: any): [number | null, string | null, number | null] {
-  let port: PORT | null
-  let pin = e.getAttribute('pin')
-  pin = pin ? parseInt(pin, 10) : null
-
-  if (pin == null) {
-    port = null
-  } else if (pin < 8) {
-    port = 'D'
-  } else if (pin < 16) {
-    port = 'B'
-  } else if (pin < 24) {
-    port = 'C'
-  } else {
-    port = null
-  }
-
-  return [pin % 8, port, pin]
-}
 
 const AVR8js = {
   build: async function (
@@ -215,26 +197,6 @@ const AVR8js = {
           }
         })
 
-        PotentiometerElement.forEach((e) => {
-          const [pin, prt, originalPin] = pinPort(e)
-          if (typeof pin === 'number' && prt === PORT && originalPin !== null) {
-            console.warn('Potentiometer found', e, pin, prt, PORT)
-            e.oninput = (event: any) => {
-              runner.adc.channelValues[originalPin] = (event.detail * 5) / 1023
-            }
-
-            runner.adc.channelValues[originalPin] = (e.value * 5) / 1023
-          }
-        })
-
-        // Initialize NTC temperature sensors
-        NTCSensors.forEach((sensor) => {
-          const [pin, prt, originalPin] = pinPort(sensor)
-          if (typeof pin === 'number' && prt === PORT && originalPin !== null) {
-            ntcController.initializeSensor(sensor, runner)
-          }
-        })
-
         port.addListener((value) => {
           LEDs.forEach((e) => {
             let [pin, p] = pinPort(e)
@@ -305,6 +267,23 @@ const AVR8js = {
         })
       }
     }
+
+    // Analog inputs feed the ADC directly, independent of the port registers
+    PotentiometerElement.forEach((e) => {
+      const channel = adcChannel(e)
+      if (channel === null) return
+
+      e.oninput = (event: any) => {
+        runner.adc.channelValues[channel] = (event.detail * 5) / 1023
+      }
+      runner.adc.channelValues[channel] = (e.value * 5) / 1023
+    })
+
+    NTCSensors.forEach((sensor) => {
+      if (adcChannel(sensor) !== null) {
+        ntcController.initializeSensor(sensor, runner)
+      }
+    })
 
     // Serial port output support
     runner.usart.onByteTransmit = (value) => {
