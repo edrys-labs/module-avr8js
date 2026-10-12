@@ -21,6 +21,8 @@ export class DraggableSlider {
   private startY = 0;
   private initialLeft = 0;
   private initialTop = 0;
+  // the document listeners outlive the slider element unless remove() aborts them
+  private documentListeners = new AbortController();
 
   constructor(
     private config: SliderConfig,
@@ -106,11 +108,11 @@ export class DraggableSlider {
     document.addEventListener('mousemove', (e: MouseEvent) => {
       if (!this.isDragging) return;
       this.updatePosition(e.clientX, e.clientY);
-    });
+    }, { signal: this.documentListeners.signal });
 
     document.addEventListener('mouseup', () => {
       this.isDragging = false;
-    });
+    }, { signal: this.documentListeners.signal });
 
     // Touch events for mobile support
     this.container.addEventListener('touchstart', (e: TouchEvent) => {
@@ -131,11 +133,11 @@ export class DraggableSlider {
       const touch = e.touches[0];
       this.updatePosition(touch.clientX, touch.clientY);
       e.preventDefault();
-    });
+    }, { signal: this.documentListeners.signal });
 
     document.addEventListener('touchend', () => {
       this.isDragging = false;
-    });
+    }, { signal: this.documentListeners.signal });
   }
 
   private startDrag(clientX: number, clientY: number): void {
@@ -177,6 +179,7 @@ export class DraggableSlider {
   }
 
   public remove(): void {
+    this.documentListeners.abort();
     if (this.container.parentNode) {
       this.container.parentNode.removeChild(this.container);
     }

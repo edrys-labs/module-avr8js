@@ -23207,6 +23207,7 @@ class $8d397629722cb67b$export$976f601a95fc6e2c {
         this.startY = 0;
         this.initialLeft = 0;
         this.initialTop = 0;
+        this.documentListeners = new AbortController();
         this.container = this.createSliderElement();
         this.setupDragFunctionality();
     }
@@ -23275,9 +23276,13 @@ class $8d397629722cb67b$export$976f601a95fc6e2c {
         document.addEventListener("mousemove", (e)=>{
             if (!this.isDragging) return;
             this.updatePosition(e.clientX, e.clientY);
+        }, {
+            signal: this.documentListeners.signal
         });
         document.addEventListener("mouseup", ()=>{
             this.isDragging = false;
+        }, {
+            signal: this.documentListeners.signal
         });
         // Touch events for mobile support
         this.container.addEventListener("touchstart", (e)=>{
@@ -23293,9 +23298,13 @@ class $8d397629722cb67b$export$976f601a95fc6e2c {
             const touch = e.touches[0];
             this.updatePosition(touch.clientX, touch.clientY);
             e.preventDefault();
+        }, {
+            signal: this.documentListeners.signal
         });
         document.addEventListener("touchend", ()=>{
             this.isDragging = false;
+        }, {
+            signal: this.documentListeners.signal
         });
     }
     startDrag(clientX, clientY) {
@@ -23332,6 +23341,7 @@ class $8d397629722cb67b$export$976f601a95fc6e2c {
         parent.appendChild(this.container);
     }
     remove() {
+        this.documentListeners.abort();
         if (this.container.parentNode) this.container.parentNode.removeChild(this.container);
     }
     getElement() {
@@ -23545,6 +23555,8 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         const ds1307 = container?.querySelector("wokwi-ds1307") || null;
         const NTCSensors = Array.from(container?.querySelectorAll("wokwi-ntc-temperature-sensor") || []);
         const runner = new (0, $4edadc2b5de6ce07$export$31e2b2d64952a5f1)(hex);
+        // removes this run's listeners from the circuit when the run stops
+        const listeners = new AbortController();
         for (const PORT of PORTS){
             // Hook to PORTB register
             const port = runner.port.get(PORT);
@@ -23555,9 +23567,13 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
                         port.setPin(pin, false);
                         button.addEventListener("button-press", ()=>{
                             if (runner) port.setPin(pin, true);
+                        }, {
+                            signal: listeners.signal
                         });
                         button.addEventListener("button-release", ()=>{
                             if (runner) port.setPin(pin, false);
+                        }, {
+                            signal: listeners.signal
                         });
                     }
                 });
@@ -23701,6 +23717,7 @@ const $382e02c9bbd5d50b$export$9f13ab6af83f071c = {
         // Clean up buzzer audio and visual state when runner stops
         const originalStop = runner.stop.bind(runner);
         runner.stop = ()=>{
+            listeners.abort();
             $382e02c9bbd5d50b$var$buzzerAudio.stopAllTones();
             $382e02c9bbd5d50b$var$servoController.resetAllServos();
             $382e02c9bbd5d50b$var$ntcController.cleanup();
@@ -23748,16 +23765,21 @@ function stop() {
         disabled(true);
     }
 }
+// Counts uploads, so a compile that a newer upload overtook is dropped
+// instead of starting a second simulation next to the newer one.
+let uploads = 0;
 async function compile(sketch) {
+    const upload = ++uploads;
     if (window.runner) stop();
     toTerminal("\nstart compiling ...");
     let hex;
     try {
         hex = await window["AVR8js"].build(sketch);
     } catch (e) {
-        toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
+        if (upload === uploads) toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
         return;
     }
+    if (upload !== uploads) return;
     if (hex.stderr) {
         toTerminal(hex.stderr, false, true);
         return;

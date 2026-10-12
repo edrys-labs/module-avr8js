@@ -175,6 +175,8 @@ const AVR8js = {
     )
 
     const runner = new AVRRunner(hex)
+    // removes this run's listeners from the circuit when the run stops
+    const listeners = new AbortController()
 
     for (const PORT of PORTS) {
       // Hook to PORTB register
@@ -191,13 +193,13 @@ const AVR8js = {
               if (runner) {
                 port.setPin(pin, true)
               }
-            })
+            }, { signal: listeners.signal })
 
             button.addEventListener('button-release', () => {
               if (runner) {
                 port.setPin(pin, false)
               }
-            })
+            }, { signal: listeners.signal })
           }
         })
 
@@ -390,6 +392,7 @@ const AVR8js = {
     // Clean up buzzer audio and visual state when runner stops
     const originalStop = runner.stop.bind(runner)
     runner.stop = () => {
+      listeners.abort()
       buzzerAudio.stopAllTones()
       servoController.resetAllServos()
       ntcController.cleanup()

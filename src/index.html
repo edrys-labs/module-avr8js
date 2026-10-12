@@ -72,7 +72,13 @@
             }
         }
 
+        // Counts uploads, so a compile that a newer upload overtook is dropped
+        // instead of starting a second simulation next to the newer one.
+        let uploads = 0
+
         async function compile(sketch) {
+            const upload = ++uploads
+
             if (window.runner) {
                 stop()
             }
@@ -83,7 +89,13 @@
             try {
                 hex = await window["AVR8js"].build(sketch)
             } catch (e) {
-                toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false)
+                if (upload === uploads) {
+                    toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false)
+                }
+                return
+            }
+
+            if (upload !== uploads) {
                 return
             }
 
