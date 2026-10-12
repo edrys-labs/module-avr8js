@@ -91,15 +91,22 @@
             }
         }
 
+        // Output comes from other peers' sketches and the compiler, so it is
+        // only ever added as text, never parsed as HTML.
         function toTerminal(output, ok = true, clear = false) {
             const terminal = document.getElementById("stdout")
 
-            const span = ok ? output : `<span style="color:red"}">${output}</sapn>`
-
             if (clear) {
-                terminal.innerHTML = span
+                terminal.textContent = ""
+            }
+
+            if (ok) {
+                terminal.append(output)
             } else {
-                terminal.innerHTML += span
+                const span = document.createElement("span")
+                span.className = "error"
+                span.textContent = output
+                terminal.append(span)
             }
 
             terminal.scrollTo(0, terminal.scrollHeight)
@@ -158,6 +165,10 @@
             overflow: auto;
             background-color: #000;
             color: #fff;
+        }
+
+        #stdout .error {
+            color: red;
         }
 
         #stdin {
