@@ -26232,17 +26232,32 @@ const $382e02c9bbd5d50b$var$LIBRARIES = {
     'Stepper.h': 'Stepper',
     'AccelStepper.h': 'AccelStepper',
     'HX711.h': 'HX711',
-    'SD.h': 'SD'
+    'SD.h': 'SD',
+    'NewPing.h': 'NewPing'
+};
+// Arduino libraries that hexi.wokwi.com installs by default, but only while no libraries.txt is sent
+const $382e02c9bbd5d50b$var$DEFAULT_LIBRARIES = {
+    'Servo.h': 'Servo',
+    'LiquidCrystal_I2C.h': 'LiquidCrystal I2C',
+    'Adafruit_NeoPixel.h': 'Adafruit NeoPixel',
+    'FastLED.h': 'FastLED',
+    'RTClib.h': 'RTClib',
+    'DHT.h': 'DHT sensor library',
+    'Keypad.h': 'Keypad'
 };
 /** Adds the libraries the code includes to libraries.txt (merged with a given one). */ function $382e02c9bbd5d50b$var$withLibraries(sketch, files) {
     const libraries = new Set();
     for (const file of files.filter((f)=>f.name === 'libraries.txt'))file.content.split('\n').forEach((lib)=>lib.trim() && libraries.add(lib.trim()));
+    const headers = new Set();
     for (const code of [
         sketch,
         ...files.map((f)=>f.content)
-    ]){
-        for (const [, header] of (code || '').matchAll(/#include\s*[<"]([\w.]+)[>"]/g))if ($382e02c9bbd5d50b$var$LIBRARIES[header]) libraries.add($382e02c9bbd5d50b$var$LIBRARIES[header]);
+    ])for (const [, header] of (code || '').matchAll(/#include\s*[<"]([\w.]+)[>"]/g)){
+        headers.add(header);
+        if ($382e02c9bbd5d50b$var$LIBRARIES[header]) libraries.add($382e02c9bbd5d50b$var$LIBRARIES[header]);
     }
+    // with a libraries.txt the server installs only what it lists, so keep the default ones in use
+    if (libraries.size) headers.forEach((header)=>$382e02c9bbd5d50b$var$DEFAULT_LIBRARIES[header] && libraries.add($382e02c9bbd5d50b$var$DEFAULT_LIBRARIES[header]));
     files = files.filter((f)=>f.name !== 'libraries.txt');
     if (libraries.size) files.push({
         name: 'libraries.txt',

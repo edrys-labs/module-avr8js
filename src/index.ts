@@ -19,6 +19,18 @@ const LIBRARIES: { [header: string]: string } = {
   'AccelStepper.h': 'AccelStepper',
   'HX711.h': 'HX711',
   'SD.h': 'SD',
+  'NewPing.h': 'NewPing',
+}
+
+// Arduino libraries that hexi.wokwi.com installs by default, but only while no libraries.txt is sent
+const DEFAULT_LIBRARIES: { [header: string]: string } = {
+  'Servo.h': 'Servo',
+  'LiquidCrystal_I2C.h': 'LiquidCrystal I2C',
+  'Adafruit_NeoPixel.h': 'Adafruit NeoPixel',
+  'FastLED.h': 'FastLED',
+  'RTClib.h': 'RTClib',
+  'DHT.h': 'DHT sensor library',
+  'Keypad.h': 'Keypad',
 }
 
 /** Adds the libraries the code includes to libraries.txt (merged with a given one). */
@@ -27,10 +39,16 @@ function withLibraries(sketch: string, files: { name: string; content: string }[
   for (const file of files.filter((f) => f.name === 'libraries.txt')) {
     file.content.split('\n').forEach((lib) => lib.trim() && libraries.add(lib.trim()))
   }
+  const headers = new Set<string>()
   for (const code of [sketch, ...files.map((f) => f.content)]) {
     for (const [, header] of (code || '').matchAll(/#include\s*[<"]([\w.]+)[>"]/g)) {
+      headers.add(header)
       if (LIBRARIES[header]) libraries.add(LIBRARIES[header])
     }
+  }
+  // with a libraries.txt the server installs only what it lists, so keep the default ones in use
+  if (libraries.size) {
+    headers.forEach((header) => DEFAULT_LIBRARIES[header] && libraries.add(DEFAULT_LIBRARIES[header]))
   }
 
   files = files.filter((f) => f.name !== 'libraries.txt')

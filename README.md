@@ -21,7 +21,9 @@ so sending the same sketch again doesn't compile it again.
 **Libraries:** the server comes with many Arduino libraries (`Servo`, `LiquidCrystal_I2C`, `Adafruit_NeoPixel`,
 `FastLED`, `RTClib`, `DHT`, `Keypad`, `EEPROM`, ...). Some it installs only on request. The module requests them
 when the sketch includes `Adafruit_SSD1306.h`, `Adafruit_ILI9341.h`, `Adafruit_MPU6050.h`, `IRremote.h(pp)`,
-`Stepper.h`, `AccelStepper.h`, `HX711.h` or `SD.h`.
+`Stepper.h`, `AccelStepper.h`, `HX711.h`, `SD.h` or `NewPing.h`. A request replaces the default libraries, so the
+module then also requests the default ones the sketch includes (`Servo`, `LiquidCrystal_I2C`, `Adafruit_NeoPixel`,
+`FastLED`, `RTClib`, `DHT`, `Keypad`).
 
 ---
 
