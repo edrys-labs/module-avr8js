@@ -10,6 +10,9 @@ Import the module via:
 https://edrys-labs.github.io/module-avr8js/index.html
 ```
 
+The module follows the classroom's light or dark theme (the operating system's when opened on its own). The
+serial output stays dark in both.
+
 It needs an editor module that sends Arduino code, such as
 [module-monaco-editor](https://github.com/edrys-labs/module-monaco-editor) or
 [module-blockly-duino-v2](https://github.com/edrys-labs/module-blockly-duino-v2).

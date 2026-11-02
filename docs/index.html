@@ -27,32 +27,30 @@
     <script defer="" src="https://edrys-labs.github.io/module/vendor/alpine.min.js"></script>
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/water.min.css">
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css">
+    <link rel="stylesheet" href="https://edrys-labs.github.io/module/edrys-module.css">
 
     <!-- inline tags, so parcel bundles everything into one docs/index.html -->
     <style>:root {
-  --terminal-background: #fff;
-  --terminal-border: #0003;
-  --terminal-text: #2b2b2b;
-  --terminal-error: #b8384a;
-  --terminal-scrollbar: #c8c8c8;
-  --chart-text: #2b2b2b;
+  --terminal-error: #fa8880;
+  --terminal-scrollbar: #4a525e;
+  --chart-text: var(--edrys-text);
   --chart-grid: #0000001a;
   --chart-axis: #00000073;
   --chart-series: #2f6fdf, #d9622b, #1f9e6e, #a33fb5, #b38600, #d1455b, #2b97b8, #6b5cd6;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --terminal-background: #1a1b26;
-    --terminal-border: #1a1b26;
-    --terminal-text: #c0caf5;
-    --terminal-error: #f7768e;
-    --terminal-scrollbar: #414868;
-    --chart-text: #c0caf5;
+  html:root:not([data-theme]) {
     --chart-grid: #ffffff1a;
     --chart-axis: #ffffff73;
     --chart-series: #7aa2f7, #ff9e64, #9ece6a, #bb9af7, #e0af68, #f7768e, #7dcfff, #a9b1d6;
   }
+}
+
+html:root[data-theme="dark"] {
+  --chart-grid: #ffffff1a;
+  --chart-axis: #ffffff73;
+  --chart-series: #7aa2f7, #ff9e64, #9ece6a, #bb9af7, #e0af68, #f7768e, #7dcfff, #a9b1d6;
 }
 
 body {
@@ -61,68 +59,22 @@ body {
   max-width: none;
   height: 100vh;
   margin: 0;
-  padding: 1rem .5rem .5rem;
+  padding: 0;
   display: flex;
 }
 
-#header {
-  flex-wrap: wrap;
-  align-items: center;
-  gap: .5rem 1rem;
-  margin-bottom: .5rem;
+main {
+  flex-direction: column;
+  flex: auto;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
   display: flex;
 }
 
-.title {
-  font-size: 1.4em;
-  line-height: 1;
-}
-
-.status {
-  font-size: small;
-}
-
-.status > .label {
-  opacity: .7;
-}
-
-.status .badge {
-  color: #fff;
-  border-radius: 999px;
-  padding: .1rem .5rem;
-  font-weight: bold;
-  display: inline-block;
-}
-
-.status .badge.on {
-  background-color: #1f7a45;
-}
-
-.status .badge.off {
-  background-color: #b8384a;
-}
-
-.status .badge.wait {
-  background-color: #6b6b6b;
-}
-
-.controls {
-  margin-left: auto;
-  font-size: small;
-}
-
-.controls button {
-  white-space: nowrap;
-  margin: 0;
-}
-
-#stop:enabled {
-  color: #fff;
-  background: #b8384a;
-}
-
-#stop:enabled:hover {
-  background: #9e2f3f;
+#stop:enabled, #stop:enabled:hover {
+  background: var(--edrys-error-pill);
+  color: var(--edrys-on-error-pill);
 }
 
 .hint {
@@ -130,18 +82,16 @@ body {
 }
 
 #modules .empty {
-  border: 1px dashed;
-  border-radius: 6px;
-  margin: 0 0 .5rem;
+  border: 1px dashed var(--edrys-field-line);
+  color: var(--edrys-muted);
+  opacity: 1;
+  border-radius: 8px;
+  margin: 0;
   padding: .75rem;
 }
 
 #sensors:empty {
   display: none;
-}
-
-#sensors {
-  margin-bottom: .5rem;
 }
 
 .slider {
@@ -159,24 +109,19 @@ body {
 }
 
 .slider output {
-  text-align: right;
   min-width: 7ch;
-  font-family: monospace;
+  font-family: var(--edrys-mono);
+  text-align: right;
+  font-size: 12px;
 }
 
 #stdout {
-  border: 1px solid var(--terminal-border);
-  background: var(--terminal-background);
-  min-height: 6rem;
-  color: var(--terminal-text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   scrollbar-width: thin;
-  scrollbar-color: var(--terminal-scrollbar) var(--terminal-background);
-  border-radius: 6px;
+  scrollbar-color: var(--terminal-scrollbar) var(--edrys-terminal);
   flex: auto;
-  padding: .5rem;
-  font-family: monospace;
+  min-height: 6rem;
   overflow: auto;
 }
 
@@ -191,21 +136,13 @@ body {
   color: var(--terminal-error);
 }
 
-#input {
-  gap: .5rem;
-  margin-top: .5rem;
-  display: flex;
-}
-
 #input input {
   flex: 1;
   min-width: 0;
-  margin: 0;
 }
 
 #input button {
   white-space: nowrap;
-  margin: 0;
 }
 
 .visually-hidden {
@@ -218,7 +155,6 @@ body {
 }
 
 avr-chart {
-  margin-bottom: .5rem;
   display: block;
 }
 </style>
@@ -26351,12 +26287,12 @@ function $56a0b18e519895ee$var$executeSubject() {
     return $56a0b18e519895ee$var$config().execute || "execute";
 }
 let $56a0b18e519895ee$var$state = "loading";
-// kind is the badge colour: on, off or wait
+// kind is the pill colour: ok, warn, error or "" (neutral)
 function $56a0b18e519895ee$var$setStatus(name, kind) {
     $56a0b18e519895ee$var$state = name;
     const badge = document.getElementById("status");
     badge.textContent = name;
-    badge.className = "badge " + kind;
+    badge.className = ("edrys-pill " + kind).trim();
 }
 function $56a0b18e519895ee$var$stop() {
     // a stop during compiling drops the compile, so it ends that too
@@ -26367,7 +26303,7 @@ function $56a0b18e519895ee$var$stop() {
         $56a0b18e519895ee$var$toTerminal("\nexecution stopped");
         $56a0b18e519895ee$var$disabled(true);
     }
-    if (active) $56a0b18e519895ee$var$setStatus("stopped", "wait");
+    if (active) $56a0b18e519895ee$var$setStatus("stopped", "");
 }
 // Message that stops the simulation on every peer of the room (with synchronize)
 const $56a0b18e519895ee$var$STOP_SUBJECT = "avr8js-stop";
@@ -26423,35 +26359,35 @@ async function $56a0b18e519895ee$var$compile(body) {
     const { sketch: sketch, files: files, error: error } = $56a0b18e519895ee$var$parseUpload(body);
     if (error) {
         $56a0b18e519895ee$var$toTerminal(`\n${error}`, false);
-        $56a0b18e519895ee$var$setStatus("error", "off");
+        $56a0b18e519895ee$var$setStatus("error", "error");
         return;
     }
     $56a0b18e519895ee$var$toTerminal("\nstart compiling ...");
-    $56a0b18e519895ee$var$setStatus("compiling", "wait");
+    $56a0b18e519895ee$var$setStatus("compiling", "warn");
     let hex;
     try {
         hex = await (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c).build(sketch, files);
     } catch (e) {
         if (upload === $56a0b18e519895ee$var$uploads) {
             $56a0b18e519895ee$var$toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false);
-            $56a0b18e519895ee$var$setStatus("error", "off");
+            $56a0b18e519895ee$var$setStatus("error", "error");
         }
         return;
     }
     if (upload !== $56a0b18e519895ee$var$uploads) return;
     if (hex.stderr) {
         $56a0b18e519895ee$var$toTerminal(hex.stderr, false, true);
-        $56a0b18e519895ee$var$setStatus("error", "off");
+        $56a0b18e519895ee$var$setStatus("error", "error");
         return;
     }
     $56a0b18e519895ee$var$toTerminal(hex.stdout, true, true);
     if (hex.hex) {
         $56a0b18e519895ee$var$disabled(false);
         window.runner = (0, $382e02c9bbd5d50b$export$9f13ab6af83f071c).execute(hex.hex, $56a0b18e519895ee$var$toTerminal);
-        $56a0b18e519895ee$var$setStatus("running", "on");
+        $56a0b18e519895ee$var$setStatus("running", "ok");
     } else {
         window.runner = null;
-        $56a0b18e519895ee$var$setStatus("error", "off");
+        $56a0b18e519895ee$var$setStatus("error", "error");
     }
 }
 // Output comes from other peers' sketches and the compiler, so it is
@@ -26527,7 +26463,7 @@ Edrys.onReady(()=>{
     document.getElementById("stdout").querySelector(".hint")?.replaceChildren("Waiting for code from an editor module (subject ", Object.assign(document.createElement("code"), {
         textContent: $56a0b18e519895ee$var$executeSubject()
     }), ")\u2026");
-    $56a0b18e519895ee$var$setStatus("idle", "wait");
+    $56a0b18e519895ee$var$setStatus("idle", "");
     document.getElementById("stdin").addEventListener("keydown", (event)=>{
         if (event.key === "Enter") $56a0b18e519895ee$var$send();
     });
@@ -26566,28 +26502,25 @@ true);
 </head>
 
 <body>
-    <div id="header">
-        <span class="title">AVR8js</span>
-        <span class="status">
-            <span class="label">status:</span>
-            <span id="status" class="badge wait">loading</span>
-        </span>
-        <span class="controls">
-            <button id="stop" disabled="">
-                <span class="oi" data-glyph="media-stop" aria-hidden="true"></span> Stop
-            </button>
-        </span>
+    <div class="edrys-toolbar" role="toolbar" aria-label="Simulator">
+        <span id="status" class="edrys-pill" role="status">loading</span>
+        <span class="edrys-spacer"></span>
+        <button id="stop" disabled="">
+            <span class="oi" data-glyph="media-stop" aria-hidden="true"></span> Stop
+        </button>
     </div>
 
-    <div id="modules"></div>
-    <div id="sensors"></div>
+    <main>
+        <div id="modules"></div>
+        <div id="sensors"></div>
 
-    <div id="stdout"><span class="hint">Loading…</span></div>
+        <div id="stdout" class="edrys-terminal"><span class="hint">Loading…</span></div>
+    </main>
 
-    <div id="input">
+    <div id="input" class="edrys-footer">
         <label class="visually-hidden" for="stdin">Serial input</label>
         <input id="stdin" type="text" placeholder="Serial input" disabled="">
-        <button id="send" disabled="">
+        <button id="send" class="primary" disabled="">
             <span class="oi" data-glyph="chevron-right" aria-hidden="true"></span> Send
         </button>
     </div>

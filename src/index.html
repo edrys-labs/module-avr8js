@@ -34,6 +34,7 @@
     <script defer src="https://edrys-labs.github.io/module/vendor/alpine.min.js"></script>
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/water.min.css" />
     <link rel="stylesheet" href="https://edrys-labs.github.io/module/vendor/open-iconic/css/open-iconic.min.css" />
+    <link rel="stylesheet" href="https://edrys-labs.github.io/module/edrys-module.css" />
 
     <!-- inline tags, so parcel bundles everything into one docs/index.html -->
     <style>
@@ -46,28 +47,25 @@
 </head>
 
 <body>
-    <div id="header">
-        <span class="title">AVR8js</span>
-        <span class="status">
-            <span class="label">status:</span>
-            <span id="status" class="badge wait">loading</span>
-        </span>
-        <span class="controls">
-            <button id="stop" disabled>
-                <span class="oi" data-glyph="media-stop" aria-hidden="true"></span> Stop
-            </button>
-        </span>
+    <div class="edrys-toolbar" role="toolbar" aria-label="Simulator">
+        <span id="status" class="edrys-pill" role="status">loading</span>
+        <span class="edrys-spacer"></span>
+        <button id="stop" disabled>
+            <span class="oi" data-glyph="media-stop" aria-hidden="true"></span> Stop
+        </button>
     </div>
 
-    <div id="modules"></div>
-    <div id="sensors"></div>
+    <main>
+        <div id="modules"></div>
+        <div id="sensors"></div>
 
-    <div id="stdout"><span class="hint">Loading…</span></div>
+        <div id="stdout" class="edrys-terminal"><span class="hint">Loading…</span></div>
+    </main>
 
-    <div id="input">
+    <div id="input" class="edrys-footer">
         <label class="visually-hidden" for="stdin">Serial input</label>
         <input id="stdin" type="text" placeholder="Serial input" disabled>
-        <button id="send" disabled>
+        <button id="send" class="primary" disabled>
             <span class="oi" data-glyph="chevron-right" aria-hidden="true"></span> Send
         </button>
     </div>

@@ -33,12 +33,12 @@ function executeSubject() {
 
 let state = "loading"
 
-// kind is the badge colour: on, off or wait
+// kind is the pill colour: ok, warn, error or "" (neutral)
 function setStatus(name, kind) {
     state = name
     const badge = document.getElementById("status")
     badge.textContent = name
-    badge.className = "badge " + kind
+    badge.className = ("edrys-pill " + kind).trim()
 }
 
 function stop() {
@@ -54,7 +54,7 @@ function stop() {
     }
 
     if (active) {
-        setStatus("stopped", "wait")
+        setStatus("stopped", "")
     }
 }
 
@@ -117,12 +117,12 @@ async function compile(body) {
     const { sketch, files, error } = parseUpload(body)
     if (error) {
         toTerminal(`\n${error}`, false)
-        setStatus("error", "off")
+        setStatus("error", "error")
         return
     }
 
     toTerminal("\nstart compiling ...")
-    setStatus("compiling", "wait")
+    setStatus("compiling", "warn")
 
     let hex
     try {
@@ -130,7 +130,7 @@ async function compile(body) {
     } catch (e) {
         if (upload === uploads) {
             toTerminal(`\ncompile server (hexi.wokwi.com) failed: ${e.message}`, false)
-            setStatus("error", "off")
+            setStatus("error", "error")
         }
         return
     }
@@ -141,7 +141,7 @@ async function compile(body) {
 
     if (hex.stderr) {
         toTerminal(hex.stderr, false, true)
-        setStatus("error", "off")
+        setStatus("error", "error")
         return
     }
 
@@ -150,10 +150,10 @@ async function compile(body) {
     if (hex.hex) {
         disabled(false)
         window.runner = AVR8js.execute(hex.hex, toTerminal)
-        setStatus("running", "on")
+        setStatus("running", "ok")
     } else {
         window.runner = null
-        setStatus("error", "off")
+        setStatus("error", "error")
     }
 }
 
@@ -258,7 +258,7 @@ Edrys.onReady(() => {
         }),
         ")…"
     )
-    setStatus("idle", "wait")
+    setStatus("idle", "")
 
     document.getElementById("stdin").addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
